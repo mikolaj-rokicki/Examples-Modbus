@@ -78,6 +78,7 @@ class Connection_tab:
                                                         )
         except Exception as e:
             self.conn_info_label.configure(text = str(e))
+            logging.exception(f'{e}')
             return
         
         params = [port_no, baudrate, parity, stopbits, bytesize]
