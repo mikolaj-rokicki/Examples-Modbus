@@ -256,7 +256,7 @@ class RS485_RTU_Master:
     
     def write_single_holding_register(self, slave_adress: Union[int, bytes], register_adress: Union[int, bytes], register_value: int | bytes):
         # slave adress
-        slave_adress = self.__check_and_convert_slave_adress()
+        slave_adress = self.__check_and_convert_slave_adress(slave_adress)
         # assign function code
         function_code = b'\x06'
         # checking if register adress is propper
@@ -270,7 +270,7 @@ class RS485_RTU_Master:
         #TODO: enable send data
 
     def write_multiple_holding_registers(self, slave_adress: Union[int, bytes], starting_register_adress: Union[int, bytes], values: list[Union[int, bytes]]):
-        self.__check_and_convert_slave_adress()
+        self.__check_and_convert_slave_adress(slave_adress)
         function_code = b'\x10'
         starting_register_adress = self.__check_if_int_or_byte_and_convert_in_bounds(starting_register_adress, 2, 0, int(0xFFFF))
         registers_qty = len(values).to_bytes(2)
