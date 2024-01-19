@@ -11,9 +11,9 @@ from typing import Literal
 class Scanner:
 
     DEVICE_ADDRESSES = [1]
-    REGISTER_ADDRESSES = [[0, 576]+list(range(1000, 1500))]
+    REGISTER_ADDRESSES = [list(range(10, 150))]
 
-    def identify_network_params(com_port: None | int, addresses: list[int] = None, baudrates: list = None, parities: list = None, stopbits: list = None, bytesizes: list = None) -> dict:
+    def identify_network_params(com_port: None | int, addresses: list[int] = None, baudrates: list = None, parities: list = None, stopbits: list = None, bytesizes: list = None) -> tuple[dict, RS485_RTU_Master]:
 
         if not addresses:
             addresses = range(1, 248)
@@ -47,7 +47,14 @@ class Scanner:
                                     if address not in Scanner.DEVICE_ADDRESSES or baudrate != 19200 or parity is not serial.PARITY_NONE or stopbit is not serial.STOPBITS_ONE or bytesize is not serial.EIGHTBITS:
                                         raise No_Connection_Exception(address)
                                     else:
-                                        raise RS485_RTU_Master
+                                        temp_master = RS485_RTU_Master(
+                                            com_port, 
+                                            baudrate=baudrate, 
+                                            parity=parity, 
+                                            stopbits = stopbit, 
+                                            bytesize=bytesize
+                                        )
+                                        raise Slave_Exception
                                     
                                 params = {
                                     'baudrate': baudrate,
@@ -57,19 +64,38 @@ class Scanner:
                                     'first_address': address
                                 }
                                 logging.debug(f'network diagnosis completed, params: {params}')
-                                return 
-
+                                return params, temp_master
 
                             except Modbus_Exception as e:
-                                ret, params, first_address = Scanner.handle_exception(e, address, baudrate, parity, stopbit, bytesize)
+                                ret, params = Scanner.handle_exception(e, address, baudrate, parity, stopbit, bytesize)
                                 if ret:
-                                    return params
+                                    return params, temp_master
 
         raise Exception('no devices found')
     
-    def list_devices_in_network(master: RS485_RTU_Master, starting_address = 1, addresses = None) -> list[int]:
+    def handle_exception(e, address, baudrate, parity, stopbit, bytesize) -> tuple[bool, dict]:
+        params = {
+            'baudrate': baudrate,
+            'parity': parity,
+            'stopbit': stopbit,
+            'bytesize': bytesize,
+            'first_address': address
+        }
+        if isinstance(e, Initialization_Exception):
+            logging.exception(f'found Initialization exception "{str(e.value)}", {params}')
+            raise e
+        if isinstance(e, No_Connection_Exception):
+            logging.debug(f'no connection during network diagnostics, {params}')
+            return (False, params)
+        if isinstance(e, Slave_Exception):
+            logging.info(f'received slave exception "{str(e)}", {params}')
+            return (True, params)
+        else:
+            raise e
+    
+    def list_devices_in_network(master: RS485_RTU_Master, addresses = None) -> list[int]:
         if not addresses:
-            addresses = range(starting_address, 247)
+            addresses = range(1, 247)
         logging.info(f'starting devices listing')
         correct_addreses = []
         for address in addresses:
@@ -78,7 +104,7 @@ class Scanner:
                     if address not in Scanner.DEVICE_ADDRESSES:
                         raise No_Connection_Exception
                     else:
-                        raise Modbus_Exception
+                        raise Slave_Exception
                 else:
                     master.read_coils(address, 1, 1)
                 correct_addreses.append(address)
@@ -167,6 +193,18 @@ class Scanner:
             final_result.append(current_tuple)
         return final_result
 
+    def list_supportable_addresses_toghether(master: RS485_RTU_Master, device_address, addresses: tuple[int, int], type: Literal['DI', 'Coils', 'IR', 'HR']) -> tuple[int, int]:
+        functions_dict = {
+            'DI': master.read_discrete_inputs,
+            'Coils': master.read_coils,
+            'IR': master.read_input_registers,
+            'HR': master.read_multiple_holding_registers
+        }
+        reading_function = functions_dict[type]
+        if sys.platform == 'win32':
+            reading_function = Scanner.__temp_function
+        return (addresses[0], Scanner.__avialable_addresses_toghether(device_address, reading_function, addresses, math.ceil((addresses[0]+addresses[1])/2)))
+
     def __temp_function(device_address, start, length):
         if device_address not in Scanner.DEVICE_ADDRESSES:
             raise Modbus_Exception
@@ -175,7 +213,7 @@ class Scanner:
                 raise Illegal_Data_Address
              
         
-    def __avialable_addresses(device_address, reading_function, addresses: tuple[int, int]) -> list[tuple[int, int]]:
+    def __avialable_addresses(device_address, reading_function, addresses: tuple[int, int]) -> tuple[int, int]:
         length = addresses[1]-addresses[0]+1
         try:
             reading_function(device_address, addresses[0], length)
@@ -192,24 +230,26 @@ class Scanner:
                     return small[:-1]+[(small[-1][0], big[0][1])]+big[1:0]
             return small+big
 
-
-    def handle_exception_network(e, address, baudrate, parity, stopbit, bytesize) -> tuple[bool, dict]:
-        params = {
-            'baudrate': baudrate,
-            'parity': parity,
-            'stopbit': stopbit,
-            'bytesize': bytesize,
-            'first_address': address
-        }
-        if isinstance(e, Initialization_Exception):
-            logging.exception(f'found Initialization exception "{str(e.value)}", {params}')
-            raise e
-        if isinstance(e, No_Connection_Exception):
-            logging.debug(f'no connection during network diagnostics, {params}')
-            return (False, params)
-        if isinstance(e, Slave_Exception):
-            logging.info(f'received slave exception "{str(e)}", {params}')
-            return (True, params)
+    def __avialable_addresses_toghether(device_address, reading_function, min_max: tuple[int, int], own_address) -> int:
+        try:
+            reading_function(device_address, own_address, 1)
+            readable = True
+        except Illegal_Data_Address:
+            readable = False
+        if readable:
+            if min_max[1] == own_address:
+                return own_address
+            else:
+                return Scanner.__avialable_addresses_toghether(device_address, reading_function, (own_address, min_max[1]), math.ceil((own_address+min_max[1])/2))
         else:
-            raise e
+            if min_max[0] == own_address:
+                return None
+            elif min_max[0] == own_address-1:
+                return own_address-1
+            else:
+                return Scanner.__avialable_addresses_toghether(device_address, reading_function, (min_max[0], own_address-1), math.ceil((min_max[0]+own_address-1)/2))
+
+                                                            
+            
+    
 
