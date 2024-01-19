@@ -1,3 +1,5 @@
-2024-01-13 21:57:47,418 - WARNING - RS485_RTU_Master initialisation passed!
-2024-01-13 21:57:56,131 - INFO - Prepared message to send: 01060001007b9829
-2024-01-13 21:57:56,132 - WARNING - Data sending is turned off
+2024-01-19 12:57:01,297 - INFO - app created
+2024-01-19 12:57:08,502 - WARNING - RS485_RTU_Master initialisation passed!
+2024-01-19 12:57:08,502 - DEBUG - Connection created
+2024-01-19 12:57:08,504 - DEBUG - Device 1 created
+2024-01-19 12:57:08,510 - DEBUG - new canvas borders: (0, 0, 308, 229)

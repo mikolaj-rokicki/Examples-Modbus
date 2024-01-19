@@ -1,37 +1,37 @@
-import RPi.GPIO as GPIO
+import sys
+if sys.platform == 'win32':
+    import CM4_MBUS_LIB.RPi.GPIO as GPIO
+else:
+    import RPi.GPIO
 import serial
 from time import sleep
 import logging
 from typing import Union, Literal
 import math
+from .RS485_Exceptions import *
 
-class Modbus_Exception(Exception):
-    def __init__(self, value):
-        self.value = value
 
-class Initialization_Exception(Modbus_Exception):
-    def __init__(self, value):
-        self.value = value
-class Transmission_Exception(Modbus_Exception):
-    def __init__(self, value):
-        self.value = value
-class No_Connection_Exception(Transmission_Exception):
-    def __init__(self, slave):
-        self.value = f'No connection from slave {slave}'
-        logging.log(logging.WARNING, self.value) 
-class Connection_Interrupted_Exception(Transmission_Exception):
-    def __init__(self, slave, value):
-        self.value = f'Slave {slave}: {value}'
-        logging.log(logging.WARNING, self.value)
+
 
 class RS485_RTU_Master:
     PORTS_DEFAULTS = ((None, 10), ('/dev/ttyAMA3', 27), ('/dev/ttyAMA4', 7), ('/dev/ttyAMA0', 21))
     other_clients = [[],[],[]] #ports, devs, f_c ports
 
     # START of Initial configuration
-    def __init__(self, port_no: int | None = None, dev = None, flow_control_port: int = None, **kwargs):
+    def __init__(self, port_no: int | None = None, dev = None, flow_control_port: int = None, **kwargs: Literal['baudrate','parity','stopbits','bytesize']):
         if port_no is None:
             logging.log(logging.WARNING, 'RS485_RTU_Master initialisation passed!')
+            baudrate = kwargs.get('baudrate', 19200)
+            parity = kwargs.get('parity', serial.PARITY_NONE)
+            stopbits = kwargs.get('stopbits', serial.STOPBITS_ONE)
+            bytesize = kwargs.get('bytesize', serial.EIGHTBITS)
+            self.params = {
+            'port_no': port_no,
+            'baudrate': baudrate,
+            'parity': parity,
+            'stopbits': stopbits,
+            'bytesize': bytesize
+            }
             return
         self.__overlap_checking = True
         if type(port_no) is not int:
@@ -66,7 +66,7 @@ class RS485_RTU_Master:
         RS485_RTU_Master.other_clients[1].append(dev)
         RS485_RTU_Master.other_clients[2].append(flow_control_port)
 
-        self.servers = []
+        self.slaves = []
 
     def convigure_overlap_checking(self, value: bool):
         if type(value) is not bool:
@@ -96,8 +96,15 @@ class RS485_RTU_Master:
         parity = kwargs.get('parity', serial.PARITY_NONE)
         stopbits = kwargs.get('stopbits', serial.STOPBITS_ONE)
         bytesize = kwargs.get('bytesize', serial.EIGHTBITS)
-        
+
         self.baudrate = baudrate
+        self.params = {
+            'port_no': self.port_no,
+            'baudrate': baudrate,
+            'parity': parity,
+            'stopbits': stopbits,
+            'bytesize': bytesize
+        }
         self.serial_port = serial.Serial(port= self.dev,
                                          baudrate=baudrate,
                                          parity=parity,
@@ -153,7 +160,7 @@ class RS485_RTU_Master:
             raise Connection_Interrupted_Exception(data[0], f'CRC doesn\'t match, received CRC: {crc}, expected CRC: {expected_crc}') 
 
     def add_slave(self, slave_adress: int):
-        self.servers.append(RS485_RTU_Master.Slave(slave_adress))
+        self.slaves.append(RS485_RTU_Master.Slave(slave_adress))
     
     def __calculate_CRC(self, data):
         #TODO: fast conversion
@@ -175,7 +182,7 @@ class RS485_RTU_Master:
         return self.__read_discrete(slave_adress, starting_adress, inputs_qty, 'Coils')
     
     def __read_discrete(self, slave_adress: int | bytes, starting_adress: int | bytes, inputs_qty: int | bytes, fc: Literal['DI', 'Coils']) -> list[bool]:
-        slave_adress = self.__check_and_convert_slave_adress(slave_adress)
+        slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
         starting_adress = self.__check_if_int_or_byte_and_convert_in_bounds(starting_adress, 2, 0, int(0xFFFF))
         inputs_qty = self.__check_if_int_or_byte_and_convert_in_bounds(inputs_qty, 2, 1, 2000)
         if(fc) == 'DI':
@@ -190,7 +197,7 @@ class RS485_RTU_Master:
         return self.__convert_coil_state(response[-1:])
     
     def write_single_coil(self, slave_adress: int | bytes, output_adress: int | bytes, value: bool):
-        slave_adress = self.__check_and_convert_slave_adress(slave_adress)
+        slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
         output_adress = self.__check_if_int_or_byte_and_convert_in_bounds(output_adress, 2, 0, int(0xFFFF))
         if bool(value) is True:
             value = b'\xFF\x00'
@@ -200,7 +207,7 @@ class RS485_RTU_Master:
         self.__send_data(slave_adress+function_code+output_adress+value)
 
     def write_multiple_coils(self, slave_adress: int | bytes, starting_adress: int | bytes, values: list[bool]):
-        slave_adress = self.__check_and_convert_slave_adress(slave_adress)
+        slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
         starting_adress = self.__check_if_int_or_byte_and_convert_in_bounds(starting_adress, 2, 0, int(0xFFFF))
         if (len(values)>int(0x07B0)) or (len(values)<1) :
             raise Modbus_Exception(f"length of values cannot be {len(values)}, it has to be between 1 and {int(0x07B0)}")
@@ -242,7 +249,7 @@ class RS485_RTU_Master:
         return self.__read_registers(slave_adress, starting_adress, registers_qty, 'Holding')
 
     def __read_registers(self, slave_adress: int | bytes, starting_adress: int | bytes, registers_qty: int | bytes, fc: Literal['Input', 'Holding']) -> list[int]:
-        slave_adress = self.__check_and_convert_slave_adress(slave_adress)
+        slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
         starting_adress = self.__check_if_int_or_byte_and_convert_in_bounds(starting_adress, 2, 0, int(0xFFFF))
         input_qty = self.__check_if_int_or_byte_and_convert_in_bounds(input_qty, 2, 1, int(0x007D))
         if fc == 'Input':
@@ -256,21 +263,18 @@ class RS485_RTU_Master:
     
     def write_single_holding_register(self, slave_adress: Union[int, bytes], register_adress: Union[int, bytes], register_value: int | bytes):
         # slave adress
-        slave_adress = self.__check_and_convert_slave_adress(slave_adress)
+        slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
         # assign function code
         function_code = b'\x06'
         # checking if register adress is propper
-        register_adress = self.__check_and_convert_register_adress(register_adress)
+        register_adress = self.__check_if_int_or_byte_and_convert_in_bounds(register_adress, 2, 0, int(0xFFFF))
         register_value = self.__check_if_int_or_byte_and_convert_in_bounds(register_value, 2, 0, int(0xFFFF))
         data = slave_adress+function_code+register_adress+register_value
-        data = data+self.__calculate_CRC(data)
         logging.log(logging.INFO, f'Prepared message to send: {data.hex()}')
-        #self.__send_data(data)
-        logging.log(logging.WARNING, 'Data sending is turned off')
-        #TODO: enable send data
+        self.__send_data(data)
 
     def write_multiple_holding_registers(self, slave_adress: Union[int, bytes], starting_register_adress: Union[int, bytes], values: list[Union[int, bytes]]):
-        self.__check_and_convert_slave_adress(slave_adress)
+        slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
         function_code = b'\x10'
         starting_register_adress = self.__check_if_int_or_byte_and_convert_in_bounds(starting_register_adress, 2, 0, int(0xFFFF))
         registers_qty = len(values).to_bytes(2)
@@ -280,42 +284,19 @@ class RS485_RTU_Master:
         values_bytes = b''
         if type(values)!=list:
             raise Modbus_Exception(f'Type {type(values)} is unsupported for values, supported types is list of int and bytes!')
-        if len(values)!=registers_qty[1]:
-            raise Modbus_Exception(f'length of values: {len(values)} doesn\'t match registers_qty: {len(registers_qty)}')
-        for index, value in enumerate(values, start=0):
-            if type(value) is int:
-                if value < 0 or value > 65535:
-                    raise Modbus_Exception(f'values[{index}]: {value} is unsupported for values, it has to be an integer between 0 and 65535!')
-                value = value.to_bytes(2)
-                values_bytes += value
-            elif type(value) is bytes:
-                if len(value) != 2:
-                    raise Modbus_Exception(f'length of argument values[{index}] is {len(value)}, it has to be 2 bytes')
-                values_bytes += value
-            else:
-                raise Modbus_Exception(f'Type {type(value)} is unsupported for values, supported types are: int and bytes!')
+        if len(values) > int(0x7B):
+            raise Modbus_Exception(f'length of values cannot be greater than {int(0x7B)}')
+        for index, value in enumerate(values):
+            try:
+                value = self.__check_if_int_or_byte_and_convert_in_bounds(value, 2, 0, int(0xFFFF))
+            except Modbus_Exception as ex:
+                raise Modbus_Exception(f'{ex.value} for values[{index}]')
             
         data = slave_adress+function_code+starting_register_adress+registers_qty+byte_count+values_bytes
         logging.log(logging.INFO, f'Prepared message to send: {data.hex()}')
         #self.__send_data(data)
         logging.log(logging.WARNING, 'Data sending is turned off')
         #TODO: enable send data
-
-    def __check_and_convert_slave_adress(self, slave_adress) -> bytes:
-        return self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
-
-    def __check_and_convert_register_adress(self, register_adress):
-        if type(register_adress) is int:
-            if register_adress < 0 or register_adress > 65535:
-                raise Modbus_Exception(f'value {register_adress} is unsupported for register_adress, it has to be an integer between 0 and 65535')
-            register_adress = register_adress.to_bytes(2)
-        elif type(register_adress) is bytes:
-            if len(register_adress) != 2:
-                raise Modbus_Exception(f'length of argument register_adress is {len(register_adress)}, it has to be 2 bytes')
-        else:
-            raise Modbus_Exception(f'Type {type(register_adress)} is unsupported for register_adress, supported types are: int and bytes!')
-        return register_adress
-
 
     class Slave:
         def __init__(self, master: 'RS485_RTU_Master', adress: int):
@@ -326,3 +307,4 @@ class RS485_RTU_Master:
             #TODO: dodać return
 
         #TODO: add remaining functions
+
