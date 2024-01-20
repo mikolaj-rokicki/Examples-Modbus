@@ -8,6 +8,7 @@ from .Connection_tab import Connection_tab
 from .Connection import Connection
 from .Diagnosis_tab import Diagnosis_tab
 from .Device import Device
+from typing import Literal
 
 
 
@@ -21,7 +22,17 @@ class App:
         'NONE': None
     }        
     BAUDRATE_DICT = {
-        '19200': 19200
+        '1200': 1200, 
+        '2400': 2400, 
+        '4800': 4800, 
+        '9600': 9600, 
+        '14400': 14400, 
+        '19200': 19200, 
+        '28800': 28800, 
+        '38400': 38400, 
+        '57600': 57600, 
+        '76800': 76800, 
+        '115200': 115200
     }
     PARITY_DICT = {
         'NONE': serial.PARITY_NONE
@@ -36,7 +47,7 @@ class App:
     }
 
     COMS = ['COM0', 'COM1', 'COM2', 'COM3', 'NONE']
-    BAUDRATES = ['19200']
+    BAUDRATES = ['1200', '2400', '4800', '9600', '14400', '19200', '28800', '38400', '57600', '76800', '115200']
     PARITIES = ['NONE']
     STOPBITS = ['ONE', 'TWO']
     BYTESIZES = ['8 bits', '5 bits']
@@ -55,8 +66,7 @@ class App:
         self.info_label.pack(side=BOTTOM)
         self.root.after(1, lambda: self.info_label.config(width=self.root.winfo_width()))
 
-        self.connection_frame = Frame(self.root, background='yellow')
-        self.connection_frame.pack(fill='both', expand=1)
+
 
         self.root.after(100, lambda: self.__skip(SKIP_CONNECTION, SKIP_TO_TABLE))
 
@@ -64,7 +74,7 @@ class App:
 
     def __create_root_window(self):
         self.root = Tk()
-        self.root.title('Modbus Master')
+        self.root.title('New File')
         self.root.geometry('900x680')
 
     def __create_menu(self):
@@ -73,25 +83,24 @@ class App:
 
         self.file_menu = Menu(self._main_menu, tearoff=False)
         self._main_menu.add_cascade(label='File', menu=self.file_menu)
-        self.file_menu.add_command(label='New File', command = lambda: self.__new_file())
+        self.file_menu.add_command(label='New File', command = self.__new_file)
         self.file_menu.add_command(label='Save', command = lambda: self.__save(), state='disabled')
         self.file_menu.add_command(label='Save As', command = lambda: self.__save_as(), state='disabled')
-        self.file_menu.add_command(label= 'Load', command = lambda: self.__load())
+        self.file_menu.add_command(label= 'Load', command = self.__load)
         
         self.connection_menu = Menu(self._main_menu, tearoff=False)
         self._main_menu.add_cascade(label='Connections', menu=self.connection_menu)
-        self.connection_menu.add_command(label='Create Connection', command = lambda: self.__create_connection_tab())
-        self.connection_menu.add_command(label= 'Delete Connection', command = lambda: self.__delete_settings(), state=DISABLED)
+        self.connection_menu.add_command(label='Create Connection', command = self.__create_connection_tab)
+        self.connection_menu.add_command(label='Edit Connection', command = lambda: self.__create_connection_tab('change'), state=DISABLED)
+        self.connection_menu.add_command(label= 'Delete Connection', command = self.__delete_connection, state=DISABLED)
 
         self.network_menu = Menu(self._main_menu, tearoff=False)
         self._main_menu.add_cascade(label='Network', menu=self.network_menu)
-        self.network_menu.add_command(label='Diagnosis', command = lambda: self.__create_diagnosis_tab())
-        self.network_menu.add_command(label= 'Delete Connection', command = lambda: self.__delete_settings(), state=DISABLED)
+        self.network_menu.add_command(label='Diagnosis', command = self.__create_diagnosis_tab)
 
         self.devices_menu = Menu(self._main_menu, tearoff=False)
         self._main_menu.add_cascade(label='Devices', menu=self.devices_menu)
-        self.devices_menu.add_command(label='Create Connection', command = lambda: self.__create_connection_tab())
-        self.devices_menu.add_command(label= 'Delete Connection', command = lambda: self.__delete_settings(), state=DISABLED)
+        self.devices_menu.add_command(label='Delete Devices', command = self.__clear_devices, state=DISABLED)
 
     def __skip(self, SKIP_CONNECTION, SKIP_TO_TABLE):
         # TODO: delete lambdas
@@ -106,12 +115,9 @@ class App:
 
         pass
 
-    def __delete_settings(self):
-        pass
-
-    def __create_connection_tab(self):
+    def __create_connection_tab(self, action_type: Literal['new', 'change'] = 'new'):
         logging.log(logging.DEBUG, 'connection tab created')
-        Connection_tab(self.root, self)
+        Connection_tab(self.root, self, action_type)
 
     def __create_diagnosis_tab(self):
         logging.log(logging.DEBUG, 'diagnosis tab created')
@@ -120,19 +126,52 @@ class App:
     def assign_master(self, master: RS485_RTU_Master, params = None, conn = None):
         # master assigned
         self.master = master
-        self.connection_menu.entryconfig('Create Connection', state=DISABLED)
         if conn is not None:
             conn.window.destroy()
+
+        self.connection_frame = Frame(self.root, background='yellow')
+        self.connection_frame.pack(fill='both', expand=1)
         self.connection = Connection(self, self.connection_frame, params)
+        
+        self.connection_menu.entryconfig('Create Connection', state=DISABLED)
+        self.connection_menu.entryconfig('Edit Connection', state=NORMAL)
+        self.connection_menu.entryconfig('Delete Connection', state=NORMAL)
         self.file_menu.entryconfig('Save', state=NORMAL)
         self.file_menu.entryconfig('Save As', state=NORMAL)
 
-    def __new_file(self):
+    def __delete_connection(self):
+        if hasattr(self, 'master'):
+            self.master.destroy()
+            del self.master
+        if hasattr(self, 'connection'):
+            self.connection.destroy()
+            del self.connection
+        
+        self.connection_menu.entryconfig('Create Connection', state=NORMAL)
+        self.connection_menu.entryconfig('Edit Connection', state=DISABLED)
+        self.connection_menu.entryconfig('Delete Connection', state=DISABLED)
+        self.file_menu.entryconfig('Save', state=DISABLED)
+        self.file_menu.entryconfig('Save As', state=DISABLED)
+    
+    def edit_master(self, master: RS485_RTU_Master, params, conn = None):
+        # master assigned
+        self.master.destroy()
+        self.master = master
+        if conn is not None:
+            conn.window.destroy()
+        self.connection.change_connection(master, params[0], params[1], params[2], params[3], params[4])
+
+    def __clear_devices(self):
         self.connection.delete_devices()
+
+    def __new_file(self):
+        if hasattr(self, 'connection'):
+            self.__delete_connection()
+        self.root.title('New File')
 
     def __save(self, file_path = None):
         if not file_path:
-            file_path = 'save_data.pkl'
+            file_path = self.root.title()+'.pkl'
         save_data_connection = self.connection.params
         save_data_other = []
         for device in self.connection.devices:
@@ -149,6 +188,12 @@ class App:
     def __save_as(self):
         file_path = filedialog.asksaveasfilename(title='Save As', filetypes=(('Save As', '*.pkl'), ), defaultextension='.pkl')
         self.__save(file_path)
+        last_dot_index = file_path.rfind('.')
+        if last_dot_index != -1:  # Check if dot is found
+            file_name = file_path[:last_dot_index]
+        else:
+            file_name = file_path
+        self.root.title(file_name)
 
     def __load(self):
         file_path = filedialog.askopenfilename(title='Open File', filetypes=(('Save Files', '*.pkl'), ('All files', '*.*')))
@@ -156,6 +201,7 @@ class App:
         with open(file_path, 'rb') as file:
             save_data = pickle.load(file)
         params = save_data[0]
+        self.__delete_connection()
         if self.__load_connection(params):
             return
         for device in save_data[1]:

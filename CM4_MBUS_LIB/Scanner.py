@@ -5,7 +5,7 @@ from .RS485_Exceptions import *
 import sys
 import math
 from typing import Literal
-
+from time import sleep
 
 
 class Scanner:
@@ -13,7 +13,7 @@ class Scanner:
     DEVICE_ADDRESSES = [1]
     REGISTER_ADDRESSES = [list(range(10, 150))]
 
-    def identify_network_params(com_port: None | int, addresses: list[int] = None, baudrates: list = None, parities: list = None, stopbits: list = None, bytesizes: list = None) -> tuple[dict, RS485_RTU_Master]:
+    def identify_network_params(com_port: None | int, addresses: list[int] = None, baudrates: list = None, parities: list = None, stopbits: list = None, bytesizes: list = None, progress_function = None) -> tuple[dict, RS485_RTU_Master]:
 
         if not addresses:
             addresses = range(1, 248)
@@ -26,7 +26,9 @@ class Scanner:
         if not bytesizes:
             bytesizes = [serial.FIVEBITS, serial.SIXBITS, serial.SEVENBITS, serial.EIGHTBITS]
 
-
+        if progress_function:
+            expected_steps = len(baudrates)*len(parities)*len(stopbits)*len(bytesizes)
+            steps_done = 0
 
         for address in addresses:
             for baudrate in baudrates:
@@ -34,6 +36,10 @@ class Scanner:
                     for stopbit in stopbits:
                         for bytesize in bytesizes:
                             try:
+                                if progress_function:
+                                    steps_done+=1
+                                    progress_function(math.floor((steps_done/expected_steps)*100))
+
                                 if sys.platform !='win32':
                                     temp_master = RS485_RTU_Master(
                                         com_port, 
@@ -43,8 +49,9 @@ class Scanner:
                                         bytesize=bytesize
                                     )
                                     temp_master.read_coils(address, 1, 1)
+
                                 else:
-                                    if address not in Scanner.DEVICE_ADDRESSES or baudrate != 19200 or parity is not serial.PARITY_NONE or stopbit is not serial.STOPBITS_ONE or bytesize is not serial.EIGHTBITS:
+                                    if address not in Scanner.DEVICE_ADDRESSES or baudrate != 19200 or parity != serial.PARITY_NONE or stopbit != serial.STOPBITS_ONE or bytesize != serial.EIGHTBITS:
                                         raise No_Connection_Exception(address)
                                     else:
                                         temp_master = RS485_RTU_Master(
@@ -162,21 +169,25 @@ class Scanner:
                 supported_fc.append(fc)
         return supported_fc
     
-    def list_supportable_addresses(master: RS485_RTU_Master, device_address, addresses: tuple[int, int], type: Literal['DI', 'Coils', 'IR', 'HR']) -> list[tuple]:
+    def list_supportable_addresses(master: RS485_RTU_Master, device_address, addresses: tuple[int, int], data_type: Literal['DI', 'Coils', 'IR', 'HR'], progress_function = None) -> list[tuple]:
+        
         functions_dict = {
             'DI': master.read_discrete_inputs,
             'Coils': master.read_coils,
             'IR': master.read_input_registers,
             'HR': master.read_multiple_holding_registers
         }
-        max_read = 2000 if type == 'Coils' or type == 'DI' else 125
-        reading_function = functions_dict[type]
+        max_read = 2000 if data_type == 'Coils' or data_type == 'DI' else 125
+        reading_function = functions_dict[data_type]
         if sys.platform == 'win32':
             reading_function = Scanner.__temp_function
         addresses_no = addresses[1]-addresses[0]+1
         groups_no = math.ceil(addresses_no/max_read)
-        last_tuple_length = max_read if addresses_no % max_read == 0 else addresses_no % max_read
-        results = [Scanner.__avialable_addresses(device_address, reading_function, (addresses[0]+i*max_read, addresses[0]+(i+1)*max_read-1)) for i in range(0, groups_no-1)]
+        results = []
+        for i in range(0, groups_no-1):
+            results.append(Scanner.__avialable_addresses(device_address, reading_function, (addresses[0]+i*max_read, addresses[0]+(i+1)*max_read-1)))
+            if progress_function:
+                progress_function(math.floor((i+1)/groups_no))
         results.append(Scanner.__avialable_addresses(device_address, reading_function, (addresses[0]+(groups_no-1)*max_read, addresses[1])))
         results = [item for sublist in results for item in sublist]
         final_result = []
@@ -193,14 +204,14 @@ class Scanner:
             final_result.append(current_tuple)
         return final_result
 
-    def list_supportable_addresses_toghether(master: RS485_RTU_Master, device_address, addresses: tuple[int, int], type: Literal['DI', 'Coils', 'IR', 'HR']) -> tuple[int, int]:
+    def list_supportable_addresses_toghether(master: RS485_RTU_Master, device_address, addresses: tuple[int, int], data_type: Literal['DI', 'Coils', 'IR', 'HR']) -> tuple[int, int]:
         functions_dict = {
             'DI': master.read_discrete_inputs,
             'Coils': master.read_coils,
             'IR': master.read_input_registers,
             'HR': master.read_multiple_holding_registers
         }
-        reading_function = functions_dict[type]
+        reading_function = functions_dict[data_type]
         if sys.platform == 'win32':
             reading_function = Scanner.__temp_function
         return (addresses[0], Scanner.__avialable_addresses_toghether(device_address, reading_function, addresses, math.ceil((addresses[0]+addresses[1])/2)))
@@ -211,8 +222,7 @@ class Scanner:
         for i in range(start, start+length):
             if i not in [address for device in Scanner.REGISTER_ADDRESSES for address in device]:
                 raise Illegal_Data_Address
-             
-        
+                
     def __avialable_addresses(device_address, reading_function, addresses: tuple[int, int]) -> tuple[int, int]:
         length = addresses[1]-addresses[0]+1
         try:

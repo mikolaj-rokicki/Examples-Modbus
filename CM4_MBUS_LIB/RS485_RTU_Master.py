@@ -9,6 +9,7 @@ import logging
 from typing import Union, Literal
 import math
 from .RS485_Exceptions import *
+from datetime import datetime
 
 
 
@@ -16,62 +17,66 @@ from .RS485_Exceptions import *
 class RS485_RTU_Master:
     PORTS_DEFAULTS = ((None, 10), ('/dev/ttyAMA3', 27), ('/dev/ttyAMA4', 7), ('/dev/ttyAMA0', 21))
     other_clients = [[],[],[]] #ports, devs, f_c ports
+    __overlap_checking = True
 
     # START of Initial configuration
-    def __init__(self, port_no: int | None = None, dev = None, flow_control_port: int = None, **kwargs: Literal['baudrate','parity','stopbits','bytesize']):
-        if port_no is None:
-            logging.log(logging.WARNING, 'RS485_RTU_Master initialisation passed!')
-            baudrate = kwargs.get('baudrate', 19200)
-            parity = kwargs.get('parity', serial.PARITY_NONE)
-            stopbits = kwargs.get('stopbits', serial.STOPBITS_ONE)
-            bytesize = kwargs.get('bytesize', serial.EIGHTBITS)
-            self.params = {
-            'port_no': port_no,
-            'baudrate': baudrate,
-            'parity': parity,
-            'stopbits': stopbits,
-            'bytesize': bytesize
-            }
-            return
-        self.__overlap_checking = True
-        if type(port_no) is not int:
-            raise Initialization_Exception('port_no has to be an integer')
-        # Assign default values
-        if dev is None or flow_control_port is None:
-            if len(RS485_RTU_Master.PORTS_DEFAULTS)-1 < port_no:
-                raise Initialization_Exception('port_no not in range of supported defaults')
-            if dev == None:
-                dev = RS485_RTU_Master.PORTS_DEFAULTS[port_no][0]
+    def __init__(self, port_no: int | None = None, dev = None, flow_control_port: int = None, timeout = 0.1, **kwargs: Literal['baudrate','parity','stopbits','bytesize']):
+        self.timeout = timeout #seconds
+        if port_no is not None:
+            if type(port_no) is not int:
+                raise Initialization_Exception('port_no has to be an integer')
+            # Assign default values
+            if dev is None or flow_control_port is None:
+                if len(RS485_RTU_Master.PORTS_DEFAULTS)-1 < port_no:
+                    raise Initialization_Exception('port_no not in range of supported defaults')
                 if dev == None:
-                    raise Initialization_Exception('Not avialable default device name for this port')
-            if flow_control_port == None:
-                flow_control_port = RS485_RTU_Master.PORTS_DEFAULTS[port_no][1]
+                    dev = RS485_RTU_Master.PORTS_DEFAULTS[port_no][0]
+                    if dev == None:
+                        raise Initialization_Exception('Not avialable default device name for this port')
                 if flow_control_port == None:
-                    raise Initialization_Exception('Not avialable default flow control port for this port')
-        if type(dev) is not str:
-            raise Initialization_Exception('argument dev has to be string')
-        if type(flow_control_port) is not int:
-            raise Initialization_Exception('argument flow_control_port has to be a string')
+                    flow_control_port = RS485_RTU_Master.PORTS_DEFAULTS[port_no][1]
+                    if flow_control_port == None:
+                        raise Initialization_Exception('Not avialable default flow control port for this port')
+            if type(dev) is not str:
+                raise Initialization_Exception('argument dev has to be string')
+            if type(flow_control_port) is not int:
+                raise Initialization_Exception('argument flow_control_port has to be a string')
+        else:
+            logging.log(logging.WARNING, 'RS485_RTU_Master initialisation passed!')
 
         self.port_no = port_no
         self.dev = dev
         self.flow_control_port = flow_control_port
 
-        if self.__overlap_checking:
+        if RS485_RTU_Master.__overlap_checking:
             if self.__check_overlap():
                 raise Initialization_Exception('Found overlaping ports/device names to turn off this exception use method configure_overlap_checking(False)')
-        self.__configure_fc_port()
+        
+        if port_no is not None:
+            self.__configure_fc_port()
         self.__configure_connection(**kwargs)
+
         RS485_RTU_Master.other_clients[0].append(port_no)
         RS485_RTU_Master.other_clients[1].append(dev)
         RS485_RTU_Master.other_clients[2].append(flow_control_port)
 
         self.slaves = []
 
-    def convigure_overlap_checking(self, value: bool):
+    def destroy(self):
+        RS485_RTU_Master.other_clients[0].remove(self.port_no)
+        RS485_RTU_Master.other_clients[1].remove(self.dev)
+        RS485_RTU_Master.other_clients[2].remove(self.flow_control_port)
+        self.serial_port = None
+
+
+
+    def assign_timeout(self, timeout):
+        self.timeout = timeout
+
+    def convigure_overlap_checking(value: bool):
         if type(value) is not bool:
             raise Modbus_Exception('value of argument "value" has to be an bool')
-        self.__overlap_checking = value
+        RS485_RTU_Master.__overlap_checking = value
 
     def __check_overlap(self):
         if self.port_no in self.other_clients[0]:
@@ -97,7 +102,8 @@ class RS485_RTU_Master:
         stopbits = kwargs.get('stopbits', serial.STOPBITS_ONE)
         bytesize = kwargs.get('bytesize', serial.EIGHTBITS)
 
-        self.baudrate = baudrate
+        parity_bits = 0 if parity == serial.PARITY_NONE else 1
+        
         self.params = {
             'port_no': self.port_no,
             'baudrate': baudrate,
@@ -105,46 +111,66 @@ class RS485_RTU_Master:
             'stopbits': stopbits,
             'bytesize': bytesize
         }
-        self.serial_port = serial.Serial(port= self.dev,
-                                         baudrate=baudrate,
-                                         parity=parity,
-                                         stopbits=stopbits,
-                                         bytesize=bytesize)
+        self.bits_in_frame = parity_bits+stopbits+bytesize+1
+        self.frame_sending_time = self.bits_in_frame/baudrate
+        if self.port_no is not None:
+            self.serial_port = serial.Serial(
+                port= self.dev,
+                baudrate=baudrate,
+                parity=parity,
+                stopbits=stopbits,
+                bytesize=bytesize
+            )
+        
+            
     # END of initial configuration
 
     # START Transfer functions
     def __send_data(self, data):
+        if sys.platform == 'win32':
+            return
         data += self.__calculate_CRC(data)
-        for i in range(1, 6):
-            try:
-                received_data = b''
-                GPIO.output(self.flow_control_port, GPIO.LOW)
-                sending_time = self.__calculate_time(len(data))
-                self.serial_port.write(data)
-                sleep(sending_time)
-                GPIO.output(self.flow_control_port, GPIO.HIGH)
-                sleep(0.1) #TODO: Calculate sleep time
-                data_left = self.serial_port.inWaiting()
-                if data_left == 0:
-                    raise No_Connection_Exception(data[0])
-                logging.log(logging.DEBUG, f'reading {str(data_left)} bytes of return message')
-                received_data += self.serial_port.read(data_left)
-                logging.log(logging.INFO, f'RECEIVED DATA: {received_data}')
-                success = True
-            except Transmission_Exception:
-                success = False
-            except:
-                return #TODO: add return type
-            if success is True:
-                break            
+        logging.info(f'sending frame: {data}, hex: {data.hex()}')
+        received_data = b''
+        sending_time = self.__calculate_time(len(data))
+        # clearing buffer registers
+        self.serial_port.reset_input_buffer()
+        self.serial_port.reset_output_buffer()
+        # Opening port for transmission
+        GPIO.output(self.flow_control_port, GPIO.LOW)
+        self.serial_port.write(data)
+        sleep(sending_time)
+        # Closing port to read
+        GPIO.output(self.flow_control_port, GPIO.HIGH)
+        closing_time = datetime.now()
+        bits_in_buffer = self.serial_port.in_waiting()
+        while bits_in_buffer == 0:
+            if (datetime.now()-closing_time)>self.timeout:
+                raise No_Connection_Exception
+                logging.debug('timeout')
+            else:
+                sleep(self.frame_sending_time)
+                bits_in_buffer = self.serial_port.in_waiting()
+        last_byte_time = datetime.now()
+        received_data += self.serial_port.read(bits_in_buffer)
+        while datetime.now()-last_byte_time < 2*self.frame_sending_time:
+            sleep(self.frame_sending_time)
+            bits_in_buffer = self.serial_port.in_waiting()
+            if bits_in_buffer != 0:
+                last_byte_time = datetime.now()
+                received_data += self.serial_port.read(bits_in_buffer)
+        sleep(1.5*self.frame_sending_time)
+        if self.serial_port.in_waiting():
+            raise Connection_Interrupted_Exception(f'Silence period interrupted')
+        else:                
+            self.__check_if_response_is_propper(data, received_data)
+            return received_data[-2:-2]
 
-        return received_data[-2:-2]
-        #TODO: add exceptions
 
     def __calculate_time(self, bytes_no):
-        return (bytes_no+4)*9/self.baudrate
-        #TODO: make sure its good formula
-    # END of transfer functions
+        # return time in seconds
+        return (bytes_no+2)*self.frame_sending_time
+    
 
     def __check_if_response_is_propper(self, data, response):
         if len(response<6):
@@ -158,9 +184,6 @@ class RS485_RTU_Master:
         expected_crc = self.__calculate_CRC(response_data)
         if crc != expected_crc:
             raise Connection_Interrupted_Exception(data[0], f'CRC doesn\'t match, received CRC: {crc}, expected CRC: {expected_crc}') 
-
-    def add_slave(self, slave_adress: int):
-        self.slaves.append(RS485_RTU_Master.Slave(slave_adress))
     
     def __calculate_CRC(self, data):
         #TODO: fast conversion
@@ -174,6 +197,12 @@ class RS485_RTU_Master:
                 else:
                     crc >>= 1
         return(crc.to_bytes(2, 'little'))
+    
+    # END of transfer functions
+
+    def add_slave(self, slave_adress: int):
+        self.slaves.append(RS485_RTU_Master.Slave(slave_adress))
+    
 
     def read_discrete_inputs(self, slave_adress: int | bytes, starting_adress: int | bytes, inputs_qty: int | bytes) -> list[bool]:
         return self.__read_discrete(slave_adress, starting_adress, inputs_qty, 'DI')
@@ -294,9 +323,7 @@ class RS485_RTU_Master:
             
         data = slave_adress+function_code+starting_register_adress+registers_qty+byte_count+values_bytes
         logging.log(logging.INFO, f'Prepared message to send: {data.hex()}')
-        #self.__send_data(data)
-        logging.log(logging.WARNING, 'Data sending is turned off')
-        #TODO: enable send data
+        self.__send_data(data)
 
     class Slave:
         def __init__(self, master: 'RS485_RTU_Master', adress: int):

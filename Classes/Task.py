@@ -301,3 +301,7 @@ class Task:
             logging.info(f'write multiple HR - device id: {self.device_id}, starting address: {self.starting_adress}, values: {self.values}')
         else:
             raise Exception(f'function code {self.function_code} not supporter por push values')
+        
+    def destroy(self):
+        if hasattr(self, 'update_values_task'):
+                self.root.after_cancel(self.update_values_task)

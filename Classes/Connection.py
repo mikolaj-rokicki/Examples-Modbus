@@ -33,6 +33,7 @@ class Connection:
         self.device_tabs.pack(expand=True, fill='both')
 
     def add_new_device(self, adress = None):
+        self.app.devices_menu.entryconfig('Delete Devices', state=NORMAL)
         if not adress:
             adress = int(self.device_address_entry.get()) 
         tab = ttk.Notebook(self.window)
@@ -45,3 +46,34 @@ class Connection:
     def delete_devices(self):
         for device in self.devices:
             device.tab.destroy()
+        self.devices = []
+        self.app.devices_menu.entryconfig('Delete Devices', state=DISABLED)
+
+    def change_connection(self, master, port_no = None, baudrate = None, parity = None, stopbits = None, bytesize = None):
+        if not (port_no or baudrate or parity or stopbits or bytesize):
+            logging.warning('connection parameters haven\'t changed')
+            return
+        if port_no == self.params['port_no'] and baudrate == self.params['baudrate'] and parity == self.params['parity'] and stopbits == self.params['stopbits'] and bytesize == self.params['bytesize']:
+            logging.warning('connection parameters haven\'t changed')
+            return
+        logging.log(logging.DEBUG, 'Connection changed')
+        if port_no:
+            self.params['port_no'] = port_no
+        if baudrate:
+            self.params['baudrate'] = baudrate
+        if parity:
+            self.params['parity'] = parity
+        if stopbits:
+            self.params['stopbits'] = stopbits
+        if bytesize:
+            self.params['bytesize'] = bytesize
+        for device in self.devices:
+            for task in device.tasks:
+                task.master = master
+        
+    def destroy(self):
+        for device in self.devices:
+            device.destroy()
+        self.window.destroy()
+        self.app.devices_menu.entryconfig('Delete Devices', state=DISABLED)
+

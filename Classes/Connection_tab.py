@@ -1,11 +1,11 @@
 from CM4_MBUS_LIB import *
 from tkinter import *
 import customtkinter as ctk
-
+from typing import Literal
 
 
 class Connection_tab:
-    def __init__ (self, root, app):
+    def __init__ (self, root, app, action_type: Literal['new', 'change'] = 'new'):
         self.app = app
         
         self.window = Toplevel(root)
@@ -31,15 +31,30 @@ class Connection_tab:
         self.conn_info_label.pack(side = LEFT)
         self.window.after(10, lambda: self.conn_info_label.config(width = self.window.winfo_width()))
         
-        create_button = ctk.CTkButton(self.window, text='Create Connection', 
-                                                command= lambda: self.__create_connection(
-                                                                                          com_port_combo.get(), 
-                                                                                          baudrate_combo.get(), 
-                                                                                          parity_bits_combo.get(), 
-                                                                                          stop_bits_combo.get(), 
-                                                                                          byte_size_combo.get()
-                                                                                          )
-                                                )
+        if action_type == 'new':
+            create_button = ctk.CTkButton(
+                self.window, 
+                text='Create Connection', 
+                command= lambda: self.__create_connection(
+                                                            com_port_combo.get(), 
+                                                            baudrate_combo.get(), 
+                                                            parity_bits_combo.get(), 
+                                                            stop_bits_combo.get(), 
+                                                            byte_size_combo.get()
+                )
+            )
+        else:
+            create_button = ctk.CTkButton(
+                self.window, 
+                text='Change Connection', 
+                command= lambda: self.__edit_connection(
+                                                            com_port_combo.get(), 
+                                                            baudrate_combo.get(), 
+                                                            parity_bits_combo.get(), 
+                                                            stop_bits_combo.get(), 
+                                                            byte_size_combo.get()
+                )
+            )
         create_button.pack(pady = 10)
 
 
@@ -68,4 +83,23 @@ class Connection_tab:
         params = [port_no, baudrate, parity, stopbits, bytesize]
         self.window.grab_release()
         self.app.assign_master(master, params, self)
+    
+    def __edit_connection(self, port_no, baudrate, parity, stopbits, bytesize):
+        from .App import App
+        RS485_RTU_Master.convigure_overlap_checking(False)
+        try:
+            master = RS485_RTU_Master(App.COMS_DICT[port_no], 
+                                                        baudrate=App.BAUDRATE_DICT[baudrate], 
+                                                        parity=App.PARITY_DICT[parity], 
+                                                        stopbits=App.STOPBITS_DICT[stopbits], 
+                                                        bytesize=App.BYTESIZE_DICT[bytesize]
+                                                        )
+            RS485_RTU_Master.convigure_overlap_checking(True)
+        except Exception as e:
+            self.conn_info_label.configure(text = str(e))
+            return
+        
+        params = [port_no, baudrate, parity, stopbits, bytesize]
+        self.window.grab_release()
+        self.app.edit_master(master, params, self)
 

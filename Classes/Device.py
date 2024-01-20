@@ -73,4 +73,8 @@ class Device:
         self.task_length_entry.pack(pady=(10, 1))
         task_length_label = Label(new_task_frame, text='length')
         task_length_label.pack()
+
+    def destroy(self):
+        for task in self.tasks:
+            task.destroy()
   
