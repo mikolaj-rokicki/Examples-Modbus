@@ -9,6 +9,7 @@ from .Connection import Connection
 from .Diagnosis_tab import Diagnosis_tab
 from .Device import Device
 from typing import Literal
+import os
 
 
 
@@ -172,6 +173,8 @@ class App:
     def __save(self, file_path = None):
         if not file_path:
             file_path = self.root.title()+'.pkl'
+            if not os.path.isfile(file_path):
+                self.__save_as()
         save_data_connection = self.connection.params
         save_data_other = []
         for device in self.connection.devices:
@@ -189,14 +192,17 @@ class App:
         file_path = filedialog.asksaveasfilename(title='Save As', filetypes=(('Save As', '*.pkl'), ), defaultextension='.pkl')
         self.__save(file_path)
         last_dot_index = file_path.rfind('.')
+        last_slash_index = file_path.rfind('/')
         if last_dot_index != -1:  # Check if dot is found
-            file_name = file_path[:last_dot_index]
+            file_name = file_path[last_slash_index+1:last_dot_index]
         else:
             file_name = file_path
         self.root.title(file_name)
 
     def __load(self):
-        file_path = filedialog.askopenfilename(title='Open File', filetypes=(('Save Files', '*.pkl'), ('All files', '*.*')))
+        file_path = filedialog.askopenfilename(title='Open File', filetypes=(('Save Files', '*.pkl'), ))
+        if file_path == '':
+            return
         
         with open(file_path, 'rb') as file:
             save_data = pickle.load(file)
@@ -204,6 +210,13 @@ class App:
         self.__delete_connection()
         if self.__load_connection(params):
             return
+        last_dot_index = file_path.rfind('.')
+        last_slash_index = file_path.rfind('/')
+        if last_dot_index != -1:  # Check if dot is found
+            file_name = file_path[last_slash_index+1:last_dot_index]
+        else:
+            file_name = file_path
+        self.root.title(file_name)
         for device in save_data[1]:
             self.__load_device(device[0], device[1])
             

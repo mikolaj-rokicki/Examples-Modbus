@@ -146,7 +146,7 @@ class RS485_RTU_Master:
         bits_in_buffer = self.serial_port.in_waiting()
         while bits_in_buffer == 0:
             if (datetime.now()-closing_time)>self.timeout:
-                raise No_Connection_Exception
+                raise No_Connection_Exception(data[0:2])
                 logging.debug('timeout')
             else:
                 sleep(self.frame_sending_time)
@@ -166,12 +166,10 @@ class RS485_RTU_Master:
             self.__check_if_response_is_propper(data, received_data)
             return received_data[-2:-2]
 
-
     def __calculate_time(self, bytes_no):
         # return time in seconds
         return (bytes_no+2)*self.frame_sending_time
     
-
     def __check_if_response_is_propper(self, data, response):
         if len(response<6):
             raise Connection_Interrupted_Exception(data[0], 'Response length too short')

@@ -23,14 +23,40 @@ class Connection:
             }
         elif type(params) is dict:
             self.params = params
-        new_device_button = Button(self.window, text='new device', command= self.add_new_device)
-        new_device_button.pack()
-        self.device_address_entry = Entry(self.window)
-        self.device_address_entry.pack(pady=(10, 1))
-        device_address_label = Label(self.window, text='device adress')
-        device_address_label.pack()
+
+        connection_settings_frame = Frame(self.window)
+        connection_settings_frame.pack()
+        self.__create_connection_information_frame(connection_settings_frame)
+        self.__create_new_device_frame(connection_settings_frame)
+
+        
         self.device_tabs = ttk.Notebook(self.window)
         self.device_tabs.pack(expand=True, fill='both')
+
+    def __create_new_device_frame(self, frame):
+        new_device_frame = LabelFrame(frame, text='New Device')
+        new_device_frame.pack(side=LEFT, padx=10)
+        new_device_button = Button(new_device_frame, text='Add', command= self.add_new_device)
+        new_device_button.pack()
+        self.device_address_entry = Entry(new_device_frame)
+        self.device_address_entry.pack(pady=(10, 1))
+        device_address_label = Label(new_device_frame, text='device adress')
+        device_address_label.pack()
+
+    def __create_connection_information_frame(self, frame):
+        
+        connection_frame = LabelFrame(frame, text='Connection Information')
+        connection_frame.pack(side=LEFT)
+        port_no_label = Label(connection_frame, text=f'COM Port: {self.params["port_no"]}', anchor='w')
+        port_no_label.pack()
+        baudrate_label = Label(connection_frame, text=f'Baudrate: {self.params["baudrate"]}', anchor='w')
+        baudrate_label.pack()
+        parity_label = Label(connection_frame, text=f'Parity: {self.params["parity"]}', anchor='w')
+        parity_label.pack()
+        stopbits_label = Label(connection_frame, text=f'Stopbits: {self.params["stopbits"]}', anchor='w')
+        stopbits_label.pack()
+        bytesize_label = Label(connection_frame, text=f'Bytesize: {self.params["bytesize"]}', anchor='w')
+        bytesize_label.pack()
 
     def add_new_device(self, adress = None):
         self.app.devices_menu.entryconfig('Delete Devices', state=NORMAL)
@@ -43,6 +69,12 @@ class Connection:
         self.devices.append(device)
         return device
     
+    def delete_device(self, device: Device):
+        self.devices.remove(device)
+        device.tab.destroy()
+        device.destroy()
+
+
     def delete_devices(self):
         for device in self.devices:
             device.tab.destroy()

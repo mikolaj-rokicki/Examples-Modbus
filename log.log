@@ -1,9 +1,4 @@
-2024-01-20 21:07:46,073 - INFO - app created
-2024-01-20 21:07:48,954 - DEBUG - diagnosis tab created
-2024-01-20 21:08:23,950 - WARNING - No connection from slave 0
-2024-01-20 21:08:23,950 - DEBUG - no connection during network diagnostics, {'baudrate': 19200, 'parity': 'N', 'stopbit': 1, 'bytesize': 8, 'first_address': 0}
-2024-01-20 21:08:27,322 - WARNING - No connection from slave 0
-2024-01-20 21:08:27,322 - DEBUG - no connection during network diagnostics, {'baudrate': 19200, 'parity': 'N', 'stopbit': 1, 'bytesize': 5, 'first_address': 0}
-2024-01-20 21:09:12,387 - WARNING - RS485_RTU_Master initialisation passed!
-2024-01-20 21:09:12,387 - INFO - received slave exception "", {'baudrate': 19200, 'parity': 'N', 'stopbit': 1, 'bytesize': 8, 'first_address': 1}
-2024-01-20 21:09:12,388 - INFO - network identified with parameters {'baudrate': 19200, 'parity': 'N', 'stopbit': 1, 'bytesize': 8, 'first_address': 1}
+2024-01-21 18:35:52,939 - INFO - app created
+2024-01-21 18:35:54,975 - DEBUG - connection tab created
+2024-01-21 18:35:57,305 - WARNING - RS485_RTU_Master initialisation passed!
+2024-01-21 18:35:57,345 - DEBUG - Connection created

@@ -43,7 +43,7 @@ class Task:
         }
     
     
-    def __init__(self, app: App, tab, device_id, function_code, starting_adress, length) -> None:
+    def __init__(self, app: App, tab, device_id, function_code, starting_adress, length, device) -> None:
         
         self.app = app
         self.tab = tab
@@ -51,6 +51,7 @@ class Task:
         self.function_code = function_code
         self.starting_adress = starting_adress
         self.length = length
+        self.device = device
 
         self.root = app.root
         self.master = app.master
@@ -58,16 +59,39 @@ class Task:
         self.data_type = Task.DATA_TYPE_DICT[function_code]
         self.transmission_type = Task.TRANSMISSION_TYPE_DICT[function_code]
 
-        self.info_label = Label(self.tab, text='Establish Connection First', anchor=E, padx=10)
-        #self.info_label.pack(side=BOTTOM, expand=1, fill=X)
-        #self.root.after(5, lambda: self.info_label.config(width=self.root.winfo_width()))
+        top_frame = Frame(tab)
+        top_frame.pack(side=TOP)
 
-        self.__create_task_settings()
+        self.info_frame = Frame(tab)
+        self.info_frame.pack(side=BOTTOM, fill='x', expand=1)
+        self.info_label = Label(self.info_frame, text='ready', anchor=E, padx=10)
+        self.info_label.pack(side=BOTTOM, expand=1, fill=X)
+        self.root.after(15, lambda: self.info_label.config(width=self.root.winfo_width()))
+
+
+        self.__create_task_information(top_frame)
+        self.__create_task_settings(top_frame)
+
+        self.table_frame = Frame(tab)
+        self.table_frame.pack(fill='both', expand=1)
+
         self.__create_table(self.starting_adress, self.length)
 
-    def __create_task_settings(self):
-        task_settings_frame = LabelFrame(self.tab, text='task settings')
-        task_settings_frame.pack()
+    def __create_task_information(self, frame):
+        task_information_frame = LabelFrame(frame, text='task information')
+        task_information_frame.pack(side=LEFT)
+        function_code_label = Label(task_information_frame, text=f'Function Code: {self.function_code}')
+        function_code_label.pack()
+        first_address_label = Label(task_information_frame, text=f'First Address: {self.starting_adress}')
+        first_address_label.pack()
+        length_label = Label(task_information_frame, text=f'Length: {self.length}')
+        length_label.pack()
+        delete_task_button = Button(task_information_frame, text='Delete Task', command=lambda: self.device.delete_task(self))
+        delete_task_button.pack()
+
+    def __create_task_settings(self, frame):
+        task_settings_frame = LabelFrame(frame, text='task settings')
+        task_settings_frame.pack(side=LEFT, padx=10)
         self.__create_display_settings(task_settings_frame)
         self.__create_update_settings(task_settings_frame)
 
@@ -110,18 +134,22 @@ class Task:
         self.__update_auto_refresh()
 
     def __update_auto_refresh(self, *_event):
-        auto_refresh = self.auto_refresh.get()
-        self.auto_refresh_button.config(state='disabled' if auto_refresh else 'normal')
-        self.auto_refresh_rate_entry.config(state='normal' if auto_refresh else 'disabled')
-        if auto_refresh:
-            self.auto_refresh_rate = int(self.auto_refresh_rate_entry.get())
+        try:
+            auto_refresh = self.auto_refresh.get()
+            self.auto_refresh_button.config(state='disabled' if auto_refresh else 'normal')
+            self.auto_refresh_rate_entry.config(state='normal' if auto_refresh else 'disabled')
             if hasattr(self, 'update_values_task'):
                 self.root.after_cancel(self.update_values_task)
-            if self.transmission_type is Task.Transmission_Types.Read:
-                self.__update_values_read(self.auto_refresh_rate)
-            else:
-                self.__update_values_write(self.auto_refresh_rate)
-
+            if auto_refresh:
+                self.auto_refresh_rate = int(self.auto_refresh_rate_entry.get())
+                if self.auto_refresh_rate < 100:
+                    raise ValueError('refresh rate cannot be highier than 10/s')
+                if self.transmission_type is Task.Transmission_Types.Read:
+                    self.__update_values_read(self.auto_refresh_rate)
+                else:
+                    self.__update_values_write(self.auto_refresh_rate)
+        except Exception as e:
+            self.info_label.config(text=str(e))
 
     def __update_display_type(self, *_event):
         self.display_type = self.display_type_combo.get()
@@ -132,12 +160,12 @@ class Task:
 
     def __create_table(self, starting_adress, length):
 
-        self.table_left_frame = Frame(self.tab)
+        self.table_left_frame = Frame(self.table_frame)
         self.table_left_frame.pack(side=LEFT, fill=Y, padx=(10, 0))
         self.table_left = Frame(self.table_left_frame)
         self.table_left.pack(side=TOP)
 
-        self.canvas = Canvas(self.tab, height=300, scrollregion=(0, 0, 5000, 0), highlightthickness=0, background='green')
+        self.canvas = Canvas(self.table_frame, height=300, scrollregion=(0, 0, 5000, 0), highlightthickness=0, background='green')
         self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
         canvas_scroll_bar = Scrollbar(self.canvas, orient=HORIZONTAL, command=self.canvas.xview) 
         canvas_scroll_bar.pack(side=BOTTOM, fill=X)
@@ -234,7 +262,6 @@ class Task:
             if type(args) is int:
                 self.update_values_task = self.root.after(args[0], lambda: self.__update_values_write(args[0]))
 
-
     def __refresh_values(self):
         if hasattr(self, 'values'):
             entry_state = 'readonly' if self.transmission_type is Task.Transmission_Types.Read else 'normal'
@@ -274,7 +301,6 @@ class Task:
         self.info_label.config(text='display type updated')
         self.__refresh_values()
         self.root.after(500, lambda: self.info_label.config(text=old_info))
-
 
     def __pool_values(self):
         if self.function_code == b'\x01':

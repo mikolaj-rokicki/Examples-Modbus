@@ -1,0 +1,6 @@
+write single holding - no response
+CheckboxCombobox nie działa
+info label się nie aktualizuje
+aliases not saving
+brak plików exe
+slave exceptions nie wyskakują
