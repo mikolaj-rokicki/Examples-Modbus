@@ -1,4 +1,7 @@
-2024-01-21 18:35:52,939 - INFO - app created
-2024-01-21 18:35:54,975 - DEBUG - connection tab created
-2024-01-21 18:35:57,305 - WARNING - RS485_RTU_Master initialisation passed!
-2024-01-21 18:35:57,345 - DEBUG - Connection created
+2024-01-22 16:06:41,607 - INFO - app created
+2024-01-22 16:06:45,519 - DEBUG - connection tab created
+2024-01-22 16:06:48,214 - WARNING - RS485_RTU_Master initialisation passed!
+2024-01-22 16:06:48,247 - DEBUG - Connection created
+2024-01-22 16:06:51,010 - DEBUG - Device 1 created
+2024-01-22 16:06:53,777 - DEBUG - new canvas borders: (0, 0, 308, 229)
+2024-01-22 16:07:02,196 - DEBUG - new canvas borders: (0, 0, 308, 229)

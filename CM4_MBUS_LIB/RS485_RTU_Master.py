@@ -2,7 +2,7 @@ import sys
 if sys.platform == 'win32':
     import CM4_MBUS_LIB.RPi.GPIO as GPIO
 else:
-    import RPi.GPIO
+    import RPi.GPIO as GPIO
 import serial
 from time import sleep
 import logging
@@ -143,35 +143,37 @@ class RS485_RTU_Master:
         # Closing port to read
         GPIO.output(self.flow_control_port, GPIO.HIGH)
         closing_time = datetime.now()
-        bits_in_buffer = self.serial_port.in_waiting()
+        bits_in_buffer = self.serial_port.inWaiting()
         while bits_in_buffer == 0:
             if (datetime.now()-closing_time)>self.timeout:
                 raise No_Connection_Exception(data[0:2])
                 logging.debug('timeout')
             else:
                 sleep(self.frame_sending_time)
-                bits_in_buffer = self.serial_port.in_waiting()
+                bits_in_buffer = self.serial_port.inWaiting()
         last_byte_time = datetime.now()
         received_data += self.serial_port.read(bits_in_buffer)
-        while datetime.now()-last_byte_time < 2*self.frame_sending_time:
+        while (datetime.now()-last_byte_time).total_seconds() < 2*self.frame_sending_time:
             sleep(self.frame_sending_time)
-            bits_in_buffer = self.serial_port.in_waiting()
+            bits_in_buffer = self.serial_port.inWaiting()
             if bits_in_buffer != 0:
                 last_byte_time = datetime.now()
                 received_data += self.serial_port.read(bits_in_buffer)
         sleep(1.5*self.frame_sending_time)
-        if self.serial_port.in_waiting():
+        if self.serial_port.inWaiting():
             raise Connection_Interrupted_Exception(f'Silence period interrupted')
-        else:                
+        else:
+            logging.info(f'received response {received_data}, hex:{received_data.hex()}')
             self.__check_if_response_is_propper(data, received_data)
-            return received_data[-2:-2]
+            logging.debug(f'passed response {received_data[2:-2].hex()}')
+            return received_data[2:-2]
 
     def __calculate_time(self, bytes_no):
         # return time in seconds
         return (bytes_no+2)*self.frame_sending_time
     
     def __check_if_response_is_propper(self, data, response):
-        if len(response<6):
+        if len(response)<6:
             raise Connection_Interrupted_Exception(data[0], 'Response length too short')
         if data[0]!=response[0]:
             raise Connection_Interrupted_Exception(data[0], 'Response adress doesn\'t match with desired')
@@ -278,15 +280,15 @@ class RS485_RTU_Master:
     def __read_registers(self, slave_adress: int | bytes, starting_adress: int | bytes, registers_qty: int | bytes, fc: Literal['Input', 'Holding']) -> list[int]:
         slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
         starting_adress = self.__check_if_int_or_byte_and_convert_in_bounds(starting_adress, 2, 0, int(0xFFFF))
-        input_qty = self.__check_if_int_or_byte_and_convert_in_bounds(input_qty, 2, 1, int(0x007D))
+        input_qty = self.__check_if_int_or_byte_and_convert_in_bounds(registers_qty, 2, 1, int(0x007D))
         if fc == 'Input':
             function_code = b'\x04'
         else:
             function_code = b'\x03'
         response = self.__send_data(slave_adress+function_code+starting_adress+input_qty)
         byte_count = response[0]
-        content = byte_count[1:]
-        return [content[2*i]*int(0xFF)+content[2*i+1] for i in range(0, byte_count/2)]
+        content = response[1:]
+        return [content[2*i]*int(0xFF)+content[2*i+1] for i in range(0, int(byte_count/2))]
     
     def write_single_holding_register(self, slave_adress: Union[int, bytes], register_adress: Union[int, bytes], register_value: int | bytes):
         # slave adress
@@ -316,6 +318,7 @@ class RS485_RTU_Master:
         for index, value in enumerate(values):
             try:
                 value = self.__check_if_int_or_byte_and_convert_in_bounds(value, 2, 0, int(0xFFFF))
+                values_bytes += value
             except Modbus_Exception as ex:
                 raise Modbus_Exception(f'{ex.value} for values[{index}]')
             

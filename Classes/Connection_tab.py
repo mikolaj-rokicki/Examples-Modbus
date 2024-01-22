@@ -29,7 +29,7 @@ class Connection_tab:
         self.info_frame.pack(side = BOTTOM)
         self.conn_info_label = Label(self.info_frame, text='ready', anchor=E, padx=10)
         self.conn_info_label.pack(side = LEFT)
-        self.window.after(10, lambda: self.conn_info_label.config(width = self.window.winfo_width()))
+        self.window.after(30, lambda: self.conn_info_label.config(width = self.window.winfo_width()))
         
         if action_type == 'new':
             create_button = ctk.CTkButton(
@@ -78,6 +78,7 @@ class Connection_tab:
                                                         )
         except Exception as e:
             self.conn_info_label.configure(text = str(e))
+            logging.exception(f'{e}')
             return
         
         params = [port_no, baudrate, parity, stopbits, bytesize]

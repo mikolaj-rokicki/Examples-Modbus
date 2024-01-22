@@ -63,9 +63,9 @@ class App:
         self.__create_root_window()        
         self.__create_menu()
 
-        self.info_label = Label(self.root, text='Establish Connection First', anchor=E, padx=10)
+        self.info_label = Label(self.root, text='Establish Connection First', anchor='e', padx=10)
         self.info_label.pack(side=BOTTOM)
-        self.root.after(1, lambda: self.info_label.config(width=self.root.winfo_width()))
+        self.root.after(10, lambda: self.info_label.config(width=self.root.winfo_width()))
 
 
 
