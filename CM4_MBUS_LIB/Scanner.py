@@ -18,7 +18,7 @@ class Scanner:
         if not addresses:
             addresses = range(1, 248)
         if not baudrates:
-            baudrates = [1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 57600, 76800, 115200]
+            baudrates = [1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
         if not parities:
             parities = [serial.PARITY_NONE, serial.PARITY_EVEN, serial.PARITY_ODD, serial.PARITY_MARK, serial.PARITY_SPACE]
         if not stopbits:

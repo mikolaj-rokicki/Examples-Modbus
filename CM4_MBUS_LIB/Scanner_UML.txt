@@ -1,0 +1,14 @@
+@startuml
+class Scanner {
+    identify_network_params()
+    handle_exception()
+    list_devices_in_network()
+    list_supportable_fc_in_device()
+    list_supportable_addresses()
+    list_supportable_addresses_toghether()
+    __temp_function()
+    __avialable_addresses()
+    __avialable_addresses_toghether()
+        __init__()
+}
+@enduml

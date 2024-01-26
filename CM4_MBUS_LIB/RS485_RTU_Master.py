@@ -20,8 +20,7 @@ class RS485_RTU_Master:
     __overlap_checking = True
 
     # START of Initial configuration
-    def __init__(self, port_no: int | None = None, dev = None, flow_control_port: int = None, timeout = 0.1, **kwargs: Literal['baudrate','parity','stopbits','bytesize']):
-        self.timeout = timeout #seconds
+    def __init__(self, port_no: int | None = None, dev = None, flow_control_port: int = None, timeout: float = 0.1, **kwargs: Literal['baudrate','parity','stopbits','bytesize']):
         if port_no is not None:
             if type(port_no) is not int:
                 raise Initialization_Exception('port_no has to be an integer')
@@ -55,6 +54,7 @@ class RS485_RTU_Master:
         if port_no is not None:
             self.__configure_fc_port()
         self.__configure_connection(**kwargs)
+        self.assign_timeout(timeout)
 
         RS485_RTU_Master.other_clients[0].append(port_no)
         RS485_RTU_Master.other_clients[1].append(dev)
@@ -71,7 +71,9 @@ class RS485_RTU_Master:
 
 
     def assign_timeout(self, timeout):
-        self.timeout = timeout
+        if timeout<self.frame_sending_time:
+            raise ValueError
+        self.__timeout = float(timeout)
 
     def convigure_overlap_checking(value: bool):
         if type(value) is not bool:
@@ -111,8 +113,8 @@ class RS485_RTU_Master:
             'stopbits': stopbits,
             'bytesize': bytesize
         }
-        self.bits_in_frame = parity_bits+stopbits+bytesize+1
-        self.frame_sending_time = self.bits_in_frame/baudrate
+        bits_in_frame = parity_bits+stopbits+bytesize+1
+        self.frame_sending_time = bits_in_frame/baudrate
         if self.port_no is not None:
             self.serial_port = serial.Serial(
                 port= self.dev,
@@ -145,7 +147,7 @@ class RS485_RTU_Master:
         closing_time = datetime.now()
         bits_in_buffer = self.serial_port.inWaiting()
         while bits_in_buffer == 0:
-            if (datetime.now()-closing_time)>self.timeout:
+            if (datetime.now()-closing_time)>self.__timeout:
                 raise No_Connection_Exception(data[0:2])
                 logging.debug('timeout')
             else:
@@ -173,7 +175,7 @@ class RS485_RTU_Master:
         return (bytes_no+2)*self.frame_sending_time
     
     def __check_if_response_is_propper(self, data, response):
-        if len(response)<6:
+        if len(response)<4:
             raise Connection_Interrupted_Exception(data[0], 'Response length too short')
         if data[0]!=response[0]:
             raise Connection_Interrupted_Exception(data[0], 'Response adress doesn\'t match with desired')
@@ -186,7 +188,6 @@ class RS485_RTU_Master:
             raise Connection_Interrupted_Exception(data[0], f'CRC doesn\'t match, received CRC: {crc}, expected CRC: {expected_crc}') 
     
     def __calculate_CRC(self, data):
-        #TODO: fast conversion
         crc = 0xFFFF
         for n in range(len(data)):
             crc ^= data[n]
@@ -233,7 +234,9 @@ class RS485_RTU_Master:
         else:
             value = b'\x00\x00'
         function_code = b'\x05'
-        self.__send_data(slave_adress+function_code+output_adress+value)
+        response = self.__send_data(slave_adress+function_code+output_adress+value)
+        if response != output_adress+value:
+            raise Modbus_Exception
 
     def write_multiple_coils(self, slave_adress: int | bytes, starting_adress: int | bytes, values: list[bool]):
         slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
@@ -250,7 +253,9 @@ class RS485_RTU_Master:
             for i, b in enumerate(byte):
                 int_val = int_val | b << i
             values += int_val.to_bytes(1)
-        self.__send_data(slave_adress+function_code+starting_adress+qty_of_inputs+byte_count.to_bytes(1)+values)
+        response = self.__send_data(slave_adress+function_code+starting_adress+qty_of_inputs+byte_count.to_bytes(1)+values)
+        if response != starting_adress+qty_of_inputs:
+            raise Modbus_Exception
         
     def __convert_coil_state(data: bytearray, coil_qty: int) -> list[bool]:
         bool_list = [bool((1 << i) & byte) for byte in data for i in range(0,8)]
@@ -300,7 +305,9 @@ class RS485_RTU_Master:
         register_value = self.__check_if_int_or_byte_and_convert_in_bounds(register_value, 2, 0, int(0xFFFF))
         data = slave_adress+function_code+register_adress+register_value
         logging.log(logging.INFO, f'Prepared message to send: {data.hex()}')
-        self.__send_data(data)
+        response = self.__send_data(data)
+        if response != register_adress+register_value:
+            raise Modbus_Exception
 
     def write_multiple_holding_registers(self, slave_adress: Union[int, bytes], starting_register_adress: Union[int, bytes], values: list[Union[int, bytes]]):
         slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
@@ -312,7 +319,7 @@ class RS485_RTU_Master:
         # values validation
         values_bytes = b''
         if type(values)!=list:
-            raise Modbus_Exception(f'Type {type(values)} is unsupported for values, supported types is list of int and bytes!')
+            raise Modbus_Exception(f'Type {type(values)} is unsupported for values, supported types is list of int or bytes!')
         if len(values) > int(0x7B):
             raise Modbus_Exception(f'length of values cannot be greater than {int(0x7B)}')
         for index, value in enumerate(values):
@@ -324,7 +331,9 @@ class RS485_RTU_Master:
             
         data = slave_adress+function_code+starting_register_adress+registers_qty+byte_count+values_bytes
         logging.log(logging.INFO, f'Prepared message to send: {data.hex()}')
-        self.__send_data(data)
+        response = self.__send_data(data)
+        if response != starting_register_adress+registers_qty:
+            raise Modbus_Exception
 
     class Slave:
         def __init__(self, master: 'RS485_RTU_Master', adress: int):

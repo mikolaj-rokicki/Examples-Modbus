@@ -1,0 +1,39 @@
+@startuml
+class RS485_RTU_Master {
+    destroy()
+    assign_timeout()
+    convigure_overlap_checking()
+    __check_overlap()
+    __configure_fc_port()
+    __configure_connection()
+    __send_data()
+    __calculate_time()
+    __check_if_response_is_propper()
+    __calculate_CRC()
+    read_discrete_inputs()
+    read_coils()
+    __read_discrete()
+    write_single_coil()
+    write_multiple_coils()
+    __convert_coil_state()
+    __check_if_int_or_byte_and_convert_in_bounds()
+    read_input_registers()
+    read_multiple_holding_registers()
+    __read_registers()
+    write_single_holding_register()
+    write_multiple_holding_registers()
+    write_single_holding_register()
+        timeout
+    port_no
+    dev
+    flow_control_port
+    serial_port
+    timeout
+    bits_in_frame
+    frame_sending_time
+    serial_port
+    client
+    adress
+    __init__()
+}
+@enduml

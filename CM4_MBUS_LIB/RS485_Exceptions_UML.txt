@@ -1,0 +1,43 @@
+@startuml
+class Modbus_Exception {
+        value
+    __init__()
+}
+class Initialization_Exception {
+        __init__()
+}
+class Transmission_Exception {
+        __init__()
+}
+class No_Connection_Exception {
+        __init__()
+}
+class Connection_Interrupted_Exception {
+        __init__()
+}
+class Slave_Exception {
+        __init__()
+}
+class Illegal_Function {
+        __init__()
+}
+class Illegal_Data_Address {
+        __init__()
+}
+class Illegal_Data_Value {
+        __init__()
+}
+class Slave_Device_Failure {
+        __init__()
+}
+Exception <|-- Modbus_Exception
+Modbus_Exception <|-- Initialization_Exception
+Modbus_Exception <|-- Transmission_Exception
+Transmission_Exception <|-- No_Connection_Exception
+Transmission_Exception <|-- Connection_Interrupted_Exception
+Modbus_Exception <|-- Slave_Exception
+Slave_Exception <|-- Illegal_Function
+Slave_Exception <|-- Illegal_Data_Address
+Slave_Exception <|-- Illegal_Data_Value
+Slave_Exception <|-- Slave_Device_Failure
+@enduml
