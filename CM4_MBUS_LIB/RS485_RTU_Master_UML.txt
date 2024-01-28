@@ -22,18 +22,15 @@ class RS485_RTU_Master {
     __read_registers()
     write_single_holding_register()
     write_multiple_holding_registers()
-    write_single_holding_register()
-        timeout
-    port_no
+    custom_function()
+    custom_function_ADU()
+        port_no
     dev
     flow_control_port
     serial_port
-    timeout
-    bits_in_frame
+    __timeout
     frame_sending_time
     serial_port
-    client
-    adress
     __init__()
 }
 @enduml

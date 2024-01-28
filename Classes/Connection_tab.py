@@ -6,6 +6,7 @@ from typing import Literal
 
 class Connection_tab:
     def __init__ (self, root, app, action_type: Literal['new', 'change'] = 'new'):
+        from .App import App
         self.app = app
         
         self.window = Toplevel(root)
@@ -13,22 +14,16 @@ class Connection_tab:
         self.window.geometry('400x400')
         self.window.grab_set()
 
-        COMS = ['COM0', 'COM1', 'COM2', 'COM3', 'NONE'] # TODO: delete None
-        BAUDRATES = ['19200']
-        PARITIES = ['NONE']
-        STOPBITS = ['ONE', 'TWO']
-        BYTESIZES = ['8 bits', '5 bits']
-
-        com_port_combo = self.__create_param('COM Port', COMS, self.window)
-        baudrate_combo = self.__create_param('Baudrate', BAUDRATES, self.window)
-        parity_bits_combo = self.__create_param('Parity Bits', PARITIES, self.window)
-        stop_bits_combo = self.__create_param('Stop Bits', STOPBITS, self.window)
-        byte_size_combo = self.__create_param('Bytesize', BYTESIZES, self.window)
+        com_port_combo = self.__create_param('COM Port', App.COMS, self.window)
+        baudrate_combo = self.__create_param('Baudrate', App.BAUDRATES, self.window)
+        parity_bits_combo = self.__create_param('Parity Bits', App.PARITIES, self.window)
+        stop_bits_combo = self.__create_param('Stop Bits', App.STOPBITS, self.window)
+        byte_size_combo = self.__create_param('Bytesize', App.BYTESIZES, self.window)
 
         self.info_frame = ctk.CTkFrame(self.window, width=400)
         self.info_frame.pack(side = BOTTOM)
         self.conn_info_label = Label(self.info_frame, text='ready', anchor=E, padx=10)
-        self.conn_info_label.pack(side = LEFT)
+        self.conn_info_label.pack(side = LEFT, expand=1, fill=X)
         self.window.after(30, lambda: self.conn_info_label.config(width = self.window.winfo_width()))
         
         if action_type == 'new':

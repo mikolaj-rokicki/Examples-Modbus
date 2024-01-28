@@ -7,24 +7,23 @@ import math
 from typing import Literal
 from time import sleep
 
-
 class Scanner:
 
-    DEVICE_ADDRESSES = [1]
+    DEVICE_ADDRESSES = [1, 10]
     REGISTER_ADDRESSES = [list(range(10, 150))]
 
-    def identify_network_params(com_port: None | int, addresses: list[int] = None, baudrates: list = None, parities: list = None, stopbits: list = None, bytesizes: list = None, progress_function = None) -> tuple[dict, RS485_RTU_Master]:
+    def identify_network_params(com_port: None | int, addresses: list[int] | range = None, baudrates: list = None, parities: list = None, stopbits: list = None, bytesizes: list = None, progress_function = None) -> tuple[dict, RS485_RTU_Master]:
 
         if not addresses:
             addresses = range(1, 248)
         if not baudrates:
-            baudrates = [1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
+            baudrates = [300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
         if not parities:
-            parities = [serial.PARITY_NONE, serial.PARITY_EVEN, serial.PARITY_ODD, serial.PARITY_MARK, serial.PARITY_SPACE]
+            parities = [serial.PARITY_NONE, serial.PARITY_EVEN, serial.PARITY_ODD]
         if not stopbits:
-            stopbits = [serial.STOPBITS_ONE, serial.STOPBITS_ONE_POINT_FIVE, serial.STOPBITS_TWO]
+            stopbits = [serial.STOPBITS_ONE, serial.STOPBITS_TWO]
         if not bytesizes:
-            bytesizes = [serial.FIVEBITS, serial.SIXBITS, serial.SEVENBITS, serial.EIGHTBITS]
+            bytesizes = [serial.EIGHTBITS]
 
         if progress_function:
             expected_steps = len(baudrates)*len(parities)*len(stopbits)*len(bytesizes)
@@ -97,6 +96,9 @@ class Scanner:
         if isinstance(e, Slave_Exception):
             logging.info(f'received slave exception "{str(e)}", {params}')
             return (True, params)
+        if isinstance(e, Connection_Interrupted_Exception):
+            logging.info(f'received connection interrupted exception "{str(e)}", {params}')
+            return (True, params)
         else:
             raise e
     
@@ -148,13 +150,13 @@ class Scanner:
                 elif fc == b'\x04':
                     master.read_input_registers(device_address, 0, 1)
                 elif fc == b'\x05':
-                    master.write_single_coil(device_address, 0, True)
+                    master.write_single_coil(device_address, int(0xFEFF), False)
                 elif fc == b'\x06':
-                    master.write_single_holding_register(device_address, 0, 0)
+                    master.write_single_holding_register(device_address, int(0xFEFF), 0)
                 elif fc == b'\x0F':
-                    master.write_multiple_coils(device_address, 0, [True])
+                    master.write_multiple_coils(device_address, int(0xFEFF), [False])
                 elif fc == b'\x10':
-                    master.write_multiple_holding_registers(device_address, 0, [0])
+                    master.write_multiple_holding_registers(device_address, int(0xFEFF), [0])
                 else:
                     raise Exception('fc not supported in this library')
                 supported_fc.append(fc)

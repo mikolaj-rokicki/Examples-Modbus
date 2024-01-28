@@ -1,0 +1,58 @@
+@startuml
+class Task {
+    __create_task_information()
+    __create_task_settings()
+    __create_display_settings()
+    __create_update_settings()
+    __update_auto_refresh()
+    __update_display_type()
+    __create_table()
+    __update_values_read()
+    __update_values_write()
+    __refresh_values()
+    on_config()
+    __update_display_type()
+    __pool_values()
+    __push_values()
+    destroy()
+        app
+    tab
+    device_id
+    function_code
+    starting_adress
+    length
+    device
+    root
+    master
+    data_type
+    transmission_type
+    info_frame
+    info_label
+    table_frame
+    display_type_combo
+    display_type_combo
+    display_type
+    auto_refresh
+    auto_refresh_rate_entry
+    auto_refresh_rate
+    auto_refresh_button
+    auto_refresh_button
+    auto_refresh_rate
+    display_type
+    table_left_frame
+    table_left
+    canvas
+    table
+    values_length
+    values_entry : list[Entry] 
+    update_values_task
+    update_values_task
+    display_type
+    values
+    values
+    values
+    values
+    __init__(values_entry: list[Entry] )
+}
+Task --> Entry
+@enduml

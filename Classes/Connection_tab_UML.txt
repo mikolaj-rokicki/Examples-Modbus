@@ -1,0 +1,12 @@
+@startuml
+class Connection_tab {
+    __create_param()
+    __create_connection()
+    __edit_connection()
+        app
+    window
+    info_frame
+    conn_info_label
+    __init__()
+}
+@enduml

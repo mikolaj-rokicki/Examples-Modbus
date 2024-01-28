@@ -41,3 +41,19 @@ class Illegal_Data_Value(Slave_Exception):
 class Slave_Device_Failure(Slave_Exception):
     def __init__(self, value=None):
         super().__init__(value)
+        
+class Acknowledge(Slave_Exception):
+    def __init__(self, value=None):
+        super().__init__(value)
+
+class Slave_Device_Busy(Slave_Exception):
+    def __init__(self, value=None):
+        super().__init__(value)
+
+class Negative_Acknowledge(Slave_Exception):
+    def __init__(self, value=None):
+        super().__init__(value)
+        
+class Memory_Parity_Error(Slave_Exception):
+    def __init__(self, value=None):
+        super().__init__(value)

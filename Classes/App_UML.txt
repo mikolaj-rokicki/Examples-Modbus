@@ -1,0 +1,34 @@
+@startuml
+class App {
+    __create_root_window()
+    __create_menu()
+    __skip()
+    __create_connection_tab()
+    __create_diagnosis_tab()
+    assign_master()
+    __delete_connection()
+    edit_master()
+    __clear_devices()
+    __new_file()
+    __save()
+    __save_as()
+    __load()
+    __load_connection()
+    __load_device()
+        WINDOWS
+    DEVICE_ADDRESSES
+    REGISTER_ADDRESSES
+    info_label
+    root
+    _main_menu
+    file_menu
+    connection_menu
+    network_menu
+    devices_menu
+    master
+    connection_frame
+    connection
+    master
+    __init__()
+}
+@enduml

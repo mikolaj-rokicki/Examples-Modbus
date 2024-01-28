@@ -6,11 +6,10 @@ import pickle
 from tkinter import filedialog
 from .Connection_tab import Connection_tab
 from .Connection import Connection
-from .Diagnosis_tab import Diagnosis_tab
+from .Scanner_tab import Scanner_tab
 from .Device import Device
 from typing import Literal
 import os
-
 
 
 class App:
@@ -23,6 +22,8 @@ class App:
         'NONE': None
     }        
     BAUDRATE_DICT = {
+        '300': 300,
+        '600': 600,
         '1200': 1200, 
         '1800': 1800,
         '2400': 2400, 
@@ -34,7 +35,9 @@ class App:
         '115200': 115200
     }
     PARITY_DICT = {
-        'NONE': serial.PARITY_NONE
+        'NONE': serial.PARITY_NONE,
+        'EVEN': serial.PARITY_EVEN,
+        'ODD': serial.PARITY_ODD
     }
     STOPBITS_DICT = {
         'ONE': serial.STOPBITS_ONE,
@@ -42,14 +45,13 @@ class App:
     }
     BYTESIZE_DICT = {
         '8 bits': serial.EIGHTBITS,
-        '5 bits': serial.FIVEBITS
     }
 
     COMS = ['COM0', 'COM1', 'COM2', 'COM3', 'NONE']
-    BAUDRATES = ['1200', '1800', '2400', '4800', '9600', '19200', '38400', '57600', '115200']
-    PARITIES = ['NONE']
+    BAUDRATES = ['300', '600', '1200', '1800', '2400', '4800', '9600', '19200', '38400', '57600', '115200']
+    PARITIES = ['NONE', 'EVEN', 'ODD']
     STOPBITS = ['ONE', 'TWO']
-    BYTESIZES = ['8 bits', '5 bits']
+    BYTESIZES = ['8 bits']
 
     def __init__(self, WINDOWS = False, SKIP_CONNECTION = False, SKIP_TO_TABLE = False, DEVICE_ADDRESSES = [], REGISTER_ADDRESSES = []):
         
@@ -95,7 +97,7 @@ class App:
 
         self.network_menu = Menu(self._main_menu, tearoff=False)
         self._main_menu.add_cascade(label='Network', menu=self.network_menu)
-        self.network_menu.add_command(label='Diagnosis', command = self.__create_diagnosis_tab)
+        self.network_menu.add_command(label='Scanning', command = self.__create_scanning_tab)
 
         self.devices_menu = Menu(self._main_menu, tearoff=False)
         self._main_menu.add_cascade(label='Devices', menu=self.devices_menu)
@@ -118,9 +120,9 @@ class App:
         logging.log(logging.DEBUG, 'connection tab created')
         Connection_tab(self.root, self, action_type)
 
-    def __create_diagnosis_tab(self):
+    def __create_scanning_tab(self):
         logging.log(logging.DEBUG, 'diagnosis tab created')
-        Diagnosis_tab(self.root, self)
+        Scanner_tab(self.root, self)
 
     def assign_master(self, master: RS485_RTU_Master, params = None, conn = None):
         # master assigned
@@ -128,7 +130,7 @@ class App:
         if conn is not None:
             conn.window.destroy()
 
-        self.connection_frame = Frame(self.root, background='yellow')
+        self.connection_frame = Frame(self.root)
         self.connection_frame.pack(fill='both', expand=1)
         self.connection = Connection(self, self.connection_frame, params)
         

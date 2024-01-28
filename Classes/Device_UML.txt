@@ -1,0 +1,20 @@
+@startuml
+class Device {
+    add_new_task()
+    __create_device_information_frame()
+    __new_task_frame()
+    update_length_entry()
+    destroy()
+    delete_task()
+        app
+    tab
+    address
+    tasks : list[Task] 
+    task_tabs
+    function_code_combo
+    task_address_entry
+    task_length_entry
+    __init__(tasks: list[Task] )
+}
+Device --> Task
+@enduml

@@ -1,15 +1,4 @@
-write single holding - no response
-CheckboxCombobox nie działa
-info label się nie aktualizuje
-aliases not saving
-brak plików exe
-slave exceptions nie wyskakują
-kontrola bledow (np. parity bits)
-Porty nie są zamykane
 
-Wprowadzenie teoretyczne (10 stron)
-Uwagi kocowe (stopien realizacji) (praca a nie projekt). Scharakteryzowanie najwiekszych osianiec pracy. rozszerzenie na inne warstwy fizycze.
-Problemy podczas realizacji pracy
-oproramowanie jest środkiem do realizacji celu
-cel pracy we wprowadzeniu
+przykłady użycia
+bibliografia
 charakterystyka podobnych narzędzi wsparcia

@@ -46,21 +46,38 @@ class Device:
         self.task_tabs.pack(expand=True, fill='both')
         
 
-    def add_new_task(self, adress = None, length = None, function_code = None):
-        if not adress:
-            adress = int(self.task_address_entry.get())
-        if not function_code:
-            function_code = Device.FUNCTION_CODES_DICT[self.function_code_combo.get()]
-        if not length:
-            if function_code == b'\x05' or function_code == b'\x06':
-                length = 1
-            else:
-                length = int(self.task_length_entry.get()) 
+    def add_new_task(self, address = None, length = None, function_code = None):
+        try:
+            if not address:
+                address = int(self.task_address_entry.get())
+            if not function_code:
+                function_code = Device.FUNCTION_CODES_DICT[self.function_code_combo.get()]
+            if not length:
+                if function_code == b'\x05' or function_code == b'\x06':
+                    length = 1
+                else:
+                    length = int(self.task_length_entry.get())
 
-        tab = ttk.Notebook(self.tab)
-        tab.pack(expand=1, fill='both')
-        self.task_tabs.add(tab, text=str(adress))
-        self.tasks.append(Task(self.app, tab, self.address, function_code ,adress, length, self))
+            if length < 1:
+                raise ValueError('length cannot be smaller than 1')
+            if (length > 125):
+                if Task.DATA_TYPE_DICT[function_code] is Task.Data_Types.Registers:
+                    raise ValueError('length cannot be bigger than 2000 for digital values or 125 for registers')
+                elif length > 2000:
+                    raise ValueError('length cannot be bigger than 2000 for digital values or 125 for registers')
+            if address < 0:
+                raise ValueError('starting address cannot be smaller than 0')
+            if address+length-1 > int(0xFFFF):
+                raise ValueError(f'last address cannot exceed {int(0xFFFF)}')
+
+
+            tab = ttk.Notebook(self.tab)
+            tab.pack(expand=1, fill='both')
+            self.task_tabs.add(tab, text=(str(address)+' | fc '+str(function_code[0])))
+            self.tasks.append(Task(self.app, tab, self.address, function_code ,address, length, self))
+        except Exception as e:
+            self.app.info_label.config(text = 'New Task'+str(e))
+            logging.exception(str(e))            
 
     def __create_device_information_frame(self, frame):
         device_information_frame = LabelFrame(frame, text='Device Information:')
@@ -82,7 +99,7 @@ class Device:
         self.task_address_entry.pack(pady=(10, 1))
         task_address_label = Label(new_task_frame, text='starting adress')
         task_address_label.pack()
-        self.task_length_entry = Entry(new_task_frame, disabledbackground='lightgrey')
+        self.task_length_entry = Entry(new_task_frame, disabledbackground='lightgrey', disabledforeground='lightgrey')
         self.task_length_entry.pack(pady=(10, 1))
         task_length_label = Label(new_task_frame, text='length')
         task_length_label.pack()

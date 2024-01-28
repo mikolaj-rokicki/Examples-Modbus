@@ -68,8 +68,6 @@ class RS485_RTU_Master:
         RS485_RTU_Master.other_clients[2].remove(self.flow_control_port)
         self.serial_port = None
 
-
-
     def assign_timeout(self, timeout):
         if timeout<self.frame_sending_time:
             raise ValueError
@@ -124,14 +122,12 @@ class RS485_RTU_Master:
                 bytesize=bytesize
             )
         
-            
-    # END of initial configuration
-
-    # START Transfer functions
-    def __send_data(self, data):
+    def __send_data(self, data, has_crc = False):
         if sys.platform == 'win32':
             return
-        data += self.__calculate_CRC(data)
+        broadcast = True if data[0] == 0 else False
+        if not has_crc:
+            data += self.__calculate_CRC(data)
         logging.info(f'sending frame: {data}, hex: {data.hex()}')
         received_data = b''
         sending_time = self.__calculate_time(len(data))
@@ -144,31 +140,32 @@ class RS485_RTU_Master:
         sleep(sending_time)
         # Closing port to read
         GPIO.output(self.flow_control_port, GPIO.HIGH)
-        closing_time = datetime.now()
-        bits_in_buffer = self.serial_port.inWaiting()
-        while bits_in_buffer == 0:
-            if (datetime.now()-closing_time)>self.__timeout:
-                raise No_Connection_Exception(data[0:2])
-                logging.debug('timeout')
-            else:
+        if not broadcast:
+            closing_time = datetime.now()
+            bits_in_buffer = self.serial_port.inWaiting()
+            while bits_in_buffer == 0:
+                if (datetime.now()-closing_time)>self.__timeout:
+                    raise No_Connection_Exception(data[0:2])
+                    logging.debug('timeout')
+                else:
+                    sleep(self.frame_sending_time)
+                    bits_in_buffer = self.serial_port.inWaiting()
+            last_byte_time = datetime.now()
+            received_data += self.serial_port.read(bits_in_buffer)
+            while (datetime.now()-last_byte_time).total_seconds() < 2*self.frame_sending_time:
                 sleep(self.frame_sending_time)
                 bits_in_buffer = self.serial_port.inWaiting()
-        last_byte_time = datetime.now()
-        received_data += self.serial_port.read(bits_in_buffer)
-        while (datetime.now()-last_byte_time).total_seconds() < 2*self.frame_sending_time:
-            sleep(self.frame_sending_time)
-            bits_in_buffer = self.serial_port.inWaiting()
-            if bits_in_buffer != 0:
-                last_byte_time = datetime.now()
-                received_data += self.serial_port.read(bits_in_buffer)
-        sleep(1.5*self.frame_sending_time)
-        if self.serial_port.inWaiting():
-            raise Connection_Interrupted_Exception(f'Silence period interrupted')
-        else:
-            logging.info(f'received response {received_data}, hex:{received_data.hex()}')
-            self.__check_if_response_is_propper(data, received_data)
-            logging.debug(f'passed response {received_data[2:-2].hex()}')
-            return received_data[2:-2]
+                if bits_in_buffer != 0:
+                    last_byte_time = datetime.now()
+                    received_data += self.serial_port.read(bits_in_buffer)
+            sleep(1.5*self.frame_sending_time)
+            if self.serial_port.inWaiting():
+                raise Connection_Interrupted_Exception(f'Silence period interrupted')
+            else:
+                logging.info(f'received response {received_data}, hex:{received_data.hex()}')
+                self.__check_if_response_is_propper(data, received_data)
+                logging.debug(f'passed response {received_data[2:-2].hex()}')
+                return received_data[2:-2]
 
     def __calculate_time(self, bytes_no):
         # return time in seconds
@@ -179,8 +176,28 @@ class RS485_RTU_Master:
             raise Connection_Interrupted_Exception(data[0], 'Response length too short')
         if data[0]!=response[0]:
             raise Connection_Interrupted_Exception(data[0], 'Response adress doesn\'t match with desired')
-        if data[1]!=response[1] and data[1]+128 != response[1]:
-            raise Connection_Interrupted_Exception(data[0], 'Function codes from connection and response doesn\'t match')
+        if data[1]!=response[1]:
+            if data[1]+128 == response[1]:
+                if response[2] == 1:
+                    raise Illegal_Function
+                elif response[2] == 2:
+                    raise Illegal_Data_Address
+                elif response[2] == 3:
+                    raise Illegal_Data_Value
+                elif response[2] == 4:
+                    raise Slave_Device_Failure
+                elif response[2] == 5:
+                    raise Acknowledge
+                elif response[2] == 6:
+                    raise Slave_Device_Busy
+                elif response[2] == 7:
+                    raise Negative_Acknowledge
+                elif response[2] == 8:
+                    raise Memory_Parity_Error
+                else:
+                    raise Slave_Exception
+            else:
+                raise Connection_Interrupted_Exception(data[0], 'Function codes from connection and response doesn\'t match')
         response_data = response[:-2]
         crc = response[-2:]
         expected_crc = self.__calculate_CRC(response_data)
@@ -198,12 +215,6 @@ class RS485_RTU_Master:
                 else:
                     crc >>= 1
         return(crc.to_bytes(2, 'little'))
-    
-    # END of transfer functions
-
-    def add_slave(self, slave_adress: int):
-        self.slaves.append(RS485_RTU_Master.Slave(slave_adress))
-    
 
     def read_discrete_inputs(self, slave_adress: int | bytes, starting_adress: int | bytes, inputs_qty: int | bytes) -> list[bool]:
         return self.__read_discrete(slave_adress, starting_adress, inputs_qty, 'DI')
@@ -235,7 +246,7 @@ class RS485_RTU_Master:
             value = b'\x00\x00'
         function_code = b'\x05'
         response = self.__send_data(slave_adress+function_code+output_adress+value)
-        if response != output_adress+value:
+        if response and (response != output_adress+value):
             raise Modbus_Exception
 
     def write_multiple_coils(self, slave_adress: int | bytes, starting_adress: int | bytes, values: list[bool]):
@@ -254,7 +265,7 @@ class RS485_RTU_Master:
                 int_val = int_val | b << i
             values += int_val.to_bytes(1)
         response = self.__send_data(slave_adress+function_code+starting_adress+qty_of_inputs+byte_count.to_bytes(1)+values)
-        if response != starting_adress+qty_of_inputs:
+        if response and (response != starting_adress+qty_of_inputs):
             raise Modbus_Exception
         
     def __convert_coil_state(data: bytearray, coil_qty: int) -> list[bool]:
@@ -306,7 +317,7 @@ class RS485_RTU_Master:
         data = slave_adress+function_code+register_adress+register_value
         logging.log(logging.INFO, f'Prepared message to send: {data.hex()}')
         response = self.__send_data(data)
-        if response != register_adress+register_value:
+        if response and (response != register_adress+register_value):
             raise Modbus_Exception
 
     def write_multiple_holding_registers(self, slave_adress: Union[int, bytes], starting_register_adress: Union[int, bytes], values: list[Union[int, bytes]]):
@@ -332,16 +343,12 @@ class RS485_RTU_Master:
         data = slave_adress+function_code+starting_register_adress+registers_qty+byte_count+values_bytes
         logging.log(logging.INFO, f'Prepared message to send: {data.hex()}')
         response = self.__send_data(data)
-        if response != starting_register_adress+registers_qty:
+        if response and (response != starting_register_adress+registers_qty):
             raise Modbus_Exception
 
-    class Slave:
-        def __init__(self, master: 'RS485_RTU_Master', adress: int):
-            self.client = master
-            self.adress = adress
-        def write_single_holding_register(self, register_adress, register_value):
-            self.client.write_single_holding_register(self.adress, register_adress, register_value)
-            #TODO: dodać return
-
-        #TODO: add remaining functions
-
+    def custom_function(self, slave_adress: Union[int, bytes], PDU: bytes):
+        slave_adress = self.__check_if_int_or_byte_and_convert_in_bounds(slave_adress, 1, 0, 247)
+        return self.__send_data(slave_adress+PDU)
+    
+    def custom_function_ADU(self, ADU: bytes):
+        return self.__send_data(ADU, True)

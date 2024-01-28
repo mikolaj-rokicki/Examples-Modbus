@@ -165,7 +165,7 @@ class Task:
         self.table_left = Frame(self.table_left_frame)
         self.table_left.pack(side=TOP)
 
-        self.canvas = Canvas(self.table_frame, height=300, scrollregion=(0, 0, 5000, 0), highlightthickness=0, background='green')
+        self.canvas = Canvas(self.table_frame, height=300, scrollregion=(0, 0, 5000, 0), highlightthickness=0)
         self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
         canvas_scroll_bar = Scrollbar(self.canvas, orient=HORIZONTAL, command=self.canvas.xview) 
         canvas_scroll_bar.pack(side=BOTTOM, fill=X)
@@ -177,7 +177,7 @@ class Task:
         self.values_length = length
         ROWS = 10
         values_to_skip = starting_adress%10
-        columns = 2*math.ceil(self.values_length/ROWS)
+        columns = math.ceil((self.values_length+values_to_skip)/ROWS)
         top_left_corner = Label(self.table_left, width=20, background='lightgray', borderwidth=1, relief='solid')
         top_left_corner.grid(column=0, row=0)
         # left column
@@ -185,25 +185,20 @@ class Task:
         for i in range(0, ROWS):
             left_column[i].grid(column=0, row=i+1)
         # top row
-        top_row = [Label(self.table, text= 'alias' if i%2==0 else f'{int(((i-1)/2)*ROWS)+math.floor(starting_adress/10)}', width=20, background='lightgray', borderwidth=1, relief='solid') for i in range(0, columns)]
+        top_row = [Label(self.table, text= f'{int(i*ROWS)+math.floor(starting_adress/10)*10}', width=20, background='lightgray', borderwidth=1, relief='solid') for i in range(0, columns)]
         for j in range(0, columns):
             top_row[j].grid(column=j, row=0)
-        # aliases
-        for i in range(0, ROWS):
-            for j in range(0, int(columns/2)):
-                e = Entry(self.table, width=20, disabledbackground='lightgray', state=DISABLED if i+j*ROWS+1>self.values_length+values_to_skip or (j==0 and i<values_to_skip) else NORMAL)
-                e.grid(column=j*2, row=i+1)
         # values
         self.values_entry: list[Entry] = [] 
         entry_state = 'readonly' if self.transmission_type is Task.Transmission_Types.Read else 'normal'
-        for j in range(0, int(columns/2)):
+        for j in range(0, int(columns)):
             for i in range(0, ROWS):
                 e = Entry(self.table, width=20, disabledbackground='lightgray', state='disabled' if i+j*ROWS+1>self.values_length+values_to_skip or (j==0 and i<values_to_skip) else entry_state)
                 if e['state'] !='disabled':
                     self.values_entry.append(e)
                 if entry_state == 'normal':
                     e.bind('<Return>', self.__update_values_write)
-                e.grid(column=j*2+1, row=i+1)
+                e.grid(column=j, row=i+1)
 
     def __update_values_read(self, *args):
         
@@ -242,25 +237,28 @@ class Task:
             self.update_values_task = self.root.after(args[0], lambda: self.__update_values_read(args[0]))
 
     def __update_values_write(self, *args):
-
-        if self.data_type is Task.Data_Types.Registers:
-            if self.display_type == 'Integer':
-                self.values = [int(entry.get()) for entry in self.values_entry]
-            elif self.display_type == 'Binary':
-                self.values = [int(entry.get(), 2) for entry in self.values_entry]
-            elif self.display_type == 'Hexadecimal':
-                self.values = [int(entry.get(), 16) for entry in self.values_entry]
-            elif self.display_type == 'ASCII':
-                self.values = [ord(entry.get()) for entry in self.values_entry]
-        else:
-            if self.display_type == 'True/False':
-                self.values = [entry.get().lower() not in ('false', '0', '') for entry in self.values_entry]
-            elif self.display_type == '0/1':
-                self.values = [bool(int(entry.get())) for entry in self.values_entry]
-        self.__push_values()
-        if args:
-            if type(args) is int:
-                self.update_values_task = self.root.after(args[0], lambda: self.__update_values_write(args[0]))
+        try:
+            if self.data_type is Task.Data_Types.Registers:
+                if self.display_type == 'Integer':
+                    self.values = [int(entry.get()) for entry in self.values_entry]
+                elif self.display_type == 'Binary':
+                    self.values = [int(entry.get(), 2) for entry in self.values_entry]
+                elif self.display_type == 'Hexadecimal':
+                    self.values = [int(entry.get(), 16) for entry in self.values_entry]
+                elif self.display_type == 'ASCII':
+                    self.values = [ord(entry.get()) for entry in self.values_entry]
+            else:
+                if self.display_type == 'True/False':
+                    self.values = [entry.get().lower() not in ('false', '0', '') for entry in self.values_entry]
+                elif self.display_type == '0/1':
+                    self.values = [bool(int(entry.get())) for entry in self.values_entry]
+            self.__push_values()
+            if args:
+                if type(args) is int:
+                    self.update_values_task = self.root.after(args[0], lambda: self.__update_values_write(args[0]))
+        except Exception as e:
+            self.info_label.config(text=str(e))
+            logging.exception(str(e))
 
     def __refresh_values(self):
         if hasattr(self, 'values'):

@@ -1,0 +1,19 @@
+@startuml
+class Connection {
+    __create_new_device_frame()
+    __create_connection_information_frame()
+    add_new_device()
+    delete_device()
+    delete_devices()
+    change_connection()
+    destroy()
+        app
+    window
+    devices : list[Device] 
+    params
+    device_tabs
+    device_address_entry
+    __init__(devices: list[Device] )
+}
+Connection --> Device
+@enduml

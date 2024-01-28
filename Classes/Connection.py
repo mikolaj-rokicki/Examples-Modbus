@@ -43,37 +43,48 @@ class Connection:
         device_address_label = Label(new_device_frame, text='device adress')
         device_address_label.pack()
 
-    def __create_connection_information_frame(self, frame):
-        
-        connection_frame = LabelFrame(frame, text='Connection Information')
-        connection_frame.pack(side=LEFT)
-        port_no_label = Label(connection_frame, text=f'COM Port: {self.params["port_no"]}', anchor='w')
+    def __create_connection_information_frame(self, frame = None):
+        if not frame:
+            for child in self.connection_information_frame.winfo_children():
+                child.destroy()
+        else:
+            self.connection_information_frame = LabelFrame(frame, text='Connection Information')
+            self.connection_information_frame.pack(side=LEFT)
+        port_no_label = Label(self.connection_information_frame, text=f'COM Port: {self.params["port_no"]}', anchor='w')
         port_no_label.pack()
-        baudrate_label = Label(connection_frame, text=f'Baudrate: {self.params["baudrate"]}', anchor='w')
+        baudrate_label = Label(self.connection_information_frame, text=f'Baudrate: {self.params["baudrate"]}', anchor='w')
         baudrate_label.pack()
-        parity_label = Label(connection_frame, text=f'Parity: {self.params["parity"]}', anchor='w')
+        parity_label = Label(self.connection_information_frame, text=f'Parity: {self.params["parity"]}', anchor='w')
         parity_label.pack()
-        stopbits_label = Label(connection_frame, text=f'Stopbits: {self.params["stopbits"]}', anchor='w')
+        stopbits_label = Label(self.connection_information_frame, text=f'Stopbits: {self.params["stopbits"]}', anchor='w')
         stopbits_label.pack()
-        bytesize_label = Label(connection_frame, text=f'Bytesize: {self.params["bytesize"]}', anchor='w')
+        bytesize_label = Label(self.connection_information_frame, text=f'Bytesize: {self.params["bytesize"]}', anchor='w')
         bytesize_label.pack()
 
-    def add_new_device(self, adress = None):
-        self.app.devices_menu.entryconfig('Delete Devices', state=NORMAL)
-        if not adress:
-            adress = int(self.device_address_entry.get()) 
-        tab = ttk.Notebook(self.window)
-        tab.pack(expand=1, fill='both')
-        self.device_tabs.add(tab, text=str(adress))
-        device = Device(self.app, tab, adress)
-        self.devices.append(device)
-        return device
+    def add_new_device(self, address = None):
+        try:
+            self.app.devices_menu.entryconfig('Delete Devices', state=NORMAL)
+            if not address:
+                address = int(self.device_address_entry.get()) 
+            if address < 1:
+                raise ValueError('Device Address cannot be smaller than 1')
+            if address > 247:
+                raise ValueError('Device Address cannot be bigger than 247')
+
+            tab = ttk.Notebook(self.window)
+            tab.pack(expand=1, fill='both')
+            self.device_tabs.add(tab, text=str(address))
+            device = Device(self.app, tab, address)
+            self.devices.append(device)
+            return device
+        except Exception as e:
+            self.app.info_label.config(text = str(e))
+            logging.exception(str(e))
     
     def delete_device(self, device: Device):
         self.devices.remove(device)
         device.tab.destroy()
         device.destroy()
-
 
     def delete_devices(self):
         for device in self.devices:
@@ -102,6 +113,7 @@ class Connection:
         for device in self.devices:
             for task in device.tasks:
                 task.master = master
+        self.__create_connection_information_frame()
         
     def destroy(self):
         for device in self.devices:
