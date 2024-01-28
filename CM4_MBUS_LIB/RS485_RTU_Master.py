@@ -144,7 +144,7 @@ class RS485_RTU_Master:
             closing_time = datetime.now()
             bits_in_buffer = self.serial_port.inWaiting()
             while bits_in_buffer == 0:
-                if (datetime.now()-closing_time)>self.__timeout:
+                if (datetime.now()-closing_time).total_seconds()>self.__timeout:
                     raise No_Connection_Exception(data[0:2])
                     logging.debug('timeout')
                 else:

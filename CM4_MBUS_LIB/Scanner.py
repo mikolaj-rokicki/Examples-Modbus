@@ -34,6 +34,7 @@ class Scanner:
                 for parity in parities:
                     for stopbit in stopbits:
                         for bytesize in bytesizes:
+                            sleep(0.1)
                             try:
                                 if progress_function:
                                     steps_done+=1
@@ -47,7 +48,7 @@ class Scanner:
                                         stopbits = stopbit, 
                                         bytesize=bytesize
                                     )
-                                    temp_master.read_coils(address, 1, 1)
+                                    temp_master.read_multiple_holding_registers(address, 1, 1)
 
                                 else:
                                     if address not in Scanner.DEVICE_ADDRESSES or baudrate != 19200 or parity != serial.PARITY_NONE or stopbit != serial.STOPBITS_ONE or bytesize != serial.EIGHTBITS:
@@ -108,6 +109,7 @@ class Scanner:
         logging.info(f'starting devices listing')
         correct_addreses = []
         for address in addresses:
+            sleep(0.1)
             try:
                 if sys.platform == 'win32':
                     if address not in Scanner.DEVICE_ADDRESSES:
@@ -115,14 +117,14 @@ class Scanner:
                     else:
                         raise Slave_Exception
                 else:
-                    master.read_coils(address, 1, 1)
+                    master.read_multiple_holding_registers(address, 1, 1)
                 correct_addreses.append(address)
 
             except No_Connection_Exception:
                 logging.debug(f'no connection during device identification, address: {address}')
                 continue
-            except Slave_Exception as e:
-                logging.info(f'Slave exception {e} found on adress {address}')          
+            except Transmission_Exception as e:
+                logging.info(f'Transmission exception {e} found on adress {address}')          
                 correct_addreses.append(address)
 
         return correct_addreses

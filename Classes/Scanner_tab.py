@@ -3,7 +3,6 @@ from tkinter import *
 import customtkinter as ctk
 import serial
 import logging
-from ChecklistCombobox.checklistcombobox import ChecklistCombobox
 from .Device import Device
 from tkinter import ttk
 from math import floor
@@ -19,7 +18,7 @@ class Scanner_tab:
 
         self.window = Toplevel(root)
         self.window.title('Create Connection')
-        self.window.geometry('1000x900')
+        self.window.geometry('1400x900')
         self.window.grab_set()
         main_frame = Frame(self.window)
         main_frame.pack(expand=1, fill='both')
@@ -216,7 +215,8 @@ class Scanner_tab:
                 raise ValueError('"from" address smaller than 1')
             if to_address > 247:
                 raise ValueError('"to" address bigger than 247')
-            addresses = range(from_address, to_address)
+            addresses = list(range(from_address, to_address))
+            print(addresses)
             
             baudrates = [App.BAUDRATE_DICT[bdr] for checked, bdr in self.baudradrates_touples if checked.get() is True]
             if not baudrates:
@@ -236,7 +236,7 @@ class Scanner_tab:
             logging.info(f'network identified with parameters {self.params}')
             first_adress = self.params['first_address']
             if self.bool_identify_devices.get() :
-                self.devices_list = Scanner.list_devices_in_network(self.master, range(first_adress, 248))
+                self.devices_list = Scanner.list_devices_in_network(self.master, range(first_adress, to_address))
                 logging.info(f'network identified with addresses {self.devices_list}')
                 if self.devices_list:
                     self.fci_start_button.config(state=NORMAL)
